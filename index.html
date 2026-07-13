@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chemulator &middot; Atomic Emission Spectra</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <a class="home-link" href="https://azlanyaacob92.github.io/">&larr; Chemculator home</a>
+
+    <header class="page-header">
+      <p class="eyebrow">Chemulator &middot; Bohr Model Simulator</p>
+      <h1>Atomic Emission Spectra</h1>
+      <p class="subtitle">
+        Follow light from a glowing gas tube, through a spectrometer, onto a screen &mdash;
+        and discover why the pattern of lines it leaves behind forced physicists to conclude
+        that electron energies are quantised.
+      </p>
+    </header>
+
+    <!-- Card 1: always visible -->
+    <section class="card" id="source-card">
+      <h2>1. Choose a light source</h2>
+      <div id="source-picker" class="source-picker"></div>
+
+      <div class="power-row">
+        <label class="light-switch" for="power-toggle">
+          <input type="checkbox" id="power-toggle" />
+          <span class="light-switch-track" aria-hidden="true">
+            <span class="light-switch-knob"></span>
+          </span>
+          <span class="light-switch-label" id="power-label">Power off</span>
+        </label>
+      </div>
+
+      <div class="headline">
+        <span class="headline-symbol" id="source-symbol">H</span>
+        <span class="headline-name" id="source-name">Hydrogen</span>
+      </div>
+      <p class="headline-description" id="source-description"></p>
+    </section>
+
+    <!-- Card 2/3 merged: the setup card morphs in place into the zoomed result -->
+    <section class="card" id="stage-card">
+      <h2 id="stage-heading">2. Full setup: tube &rarr; spectrometer &rarr; screen</h2>
+      <p class="card-note" id="stage-note">
+        Switch the power on and watch the sequence: the tube glows, light reaches the lens
+        and is focused into the spectrometer, then the diffraction grating spreads it onto
+        the screen.
+      </p>
+
+      <div class="apparatus-wrap" id="apparatus-wrap">
+        <svg id="apparatus-svg" class="stage-svg" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg id="result-svg" class="stage-svg result-svg" viewBox="0 0 900 110" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
+      <!-- Opens inside this card when a spectral line is selected (hydrogen only):
+           the spectrum shrinks to half height, this panel fills the rest. -->
+      <div class="transition-panel" id="transition-panel" hidden>
+        <div class="transition-panel-header">
+          <p class="transition-panel-title" id="transition-panel-title"></p>
+          <div class="view-mode-toggle" role="group" aria-label="Transition view mode">
+            <button type="button" id="mode-levels" class="view-mode-btn active">Energy levels</button>
+            <button type="button" id="mode-atom" class="view-mode-btn">Atomic view</button>
+          </div>
+        </div>
+        <svg id="energy-svg" class="transition-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg id="atom-svg" class="transition-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet" hidden></svg>
+        <p class="transition-caption" id="transition-caption"></p>
+      </div>
+
+      <div class="result-controls" id="result-controls" hidden>
+        <button type="button" id="em-toggle" class="em-toggle-btn">Compare to full EM spectrum &darr;</button>
+        <div class="em-reveal-wrap" id="em-reveal-wrap">
+          <div id="em-bar-wrap" class="em-bar-wrap">
+            <div id="em-bar" class="em-bar"></div>
+          </div>
+          <div class="em-axis-labels">
+            <span>Radio</span>
+            <span>Microwave</span>
+            <span>Infrared</span>
+            <span>Visible</span>
+            <span>Ultraviolet</span>
+            <span>X-ray</span>
+            <span>Gamma</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="stage-hint" id="setup-hint"></p>
+    </section>
+
+    <div class="stage-nav">
+      <button id="nav-back" class="stage-nav-btn" type="button">&larr; Back</button>
+      <button id="nav-next" class="stage-nav-btn stage-nav-btn-primary" type="button">Next &rarr;</button>
+    </div>
+
+    <footer class="page-footer">
+      <p>Part of the Chemulator suite &middot; Chemculate</p>
+    </footer>
+  </div>
+
+  <script src="chemistry.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
