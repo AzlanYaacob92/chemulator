@@ -532,6 +532,7 @@
     buttonEl.classList.add('active');
 
     const panel = document.getElementById('transition-panel');
+    const layout = document.getElementById('result-layout');
     const wrap = document.getElementById('apparatus-wrap');
     const firstOpen = panel.hidden;
 
@@ -539,20 +540,11 @@
     panel.hidden = false;
 
     if (firstOpen) {
-      /* The line spectrum scales down to take half its vertical space; the
-       * freed half is filled by the transition panel below it. */
-      let currentHeight = 0;
-      try {
-        currentHeight = wrap.getBoundingClientRect().height;
-      } catch (err) {
-        currentHeight = 0;
-      }
-      if (currentHeight > 0) {
-        wrap.style.transition = `height 400ms var(--easing, ease-out)`;
-        raf(() => {
-          wrap.style.height = currentHeight / 2 + 'px';
-        });
-      }
+      /* Side-by-side: the line spectrum keeps its full height and moves to the
+       * left column; the transition diagram fills the right column. */
+      layout.classList.add('split');
+      wrap.style.transition = 'none';
+      wrap.style.height = '';
       panel.classList.remove('appear');
       void panel.offsetWidth;
       panel.classList.add('appear');
@@ -570,6 +562,8 @@
       panel.hidden = true;
       panel.classList.remove('appear');
     }
+    const layout = document.getElementById('result-layout');
+    if (layout) layout.classList.remove('split');
     document.querySelectorAll('.wavelength-btn.active').forEach((el) => el.classList.remove('active'));
   }
 
@@ -911,30 +905,41 @@
       bar.appendChild(seg);
     });
 
-    const markers = document.createElement('div');
-    markers.className = 'em-markers';
+    /* The source's line spectrum sits UNDER the continuous EM bar on the same
+     * log-wavelength axis, rather than overlaid on top of it. */
+    const strip = document.getElementById('em-line-strip');
+    const stripLabel = document.getElementById('em-line-strip-label');
+    clearChildren(strip);
 
     if (state.powered && !isWhite()) {
+      stripLabel.textContent = `${currentSourceData().name}\u2019s line spectrum, on the same axis`;
       currentLinesWithColor().forEach((ln) => {
         const pct = Chemulator.emSpectrumPercentFromNm(ln.wavelength);
         const mark = document.createElement('div');
         mark.className = 'em-marker';
         mark.style.left = pct + '%';
         mark.style.background = ln.color;
+        mark.style.boxShadow = `0 0 6px ${ln.color}`;
         mark.title = `${ln.wavelength.toFixed(1)} nm`;
-        markers.appendChild(mark);
+        strip.appendChild(mark);
       });
     } else if (state.powered && isWhite()) {
+      stripLabel.textContent = 'White light\u2019s continuous spectrum, on the same axis';
       const startPct = Chemulator.emSpectrumPercentFromNm(Chemulator.VISIBLE_MAX_NM);
       const endPct = Chemulator.emSpectrumPercentFromNm(Chemulator.VISIBLE_MIN_NM);
       const band = document.createElement('div');
       band.className = 'em-marker-band';
       band.style.left = startPct + '%';
       band.style.width = endPct - startPct + '%';
-      markers.appendChild(band);
+      band.style.background =
+        'linear-gradient(90deg, ' +
+        Array.from({ length: 9 }, (_, i) => {
+          const wl = Chemulator.VISIBLE_MAX_NM - ((Chemulator.VISIBLE_MAX_NM - Chemulator.VISIBLE_MIN_NM) * i) / 8;
+          return Chemulator.wavelengthToRGB(wl);
+        }).join(', ') +
+        ')';
+      strip.appendChild(band);
     }
-
-    bar.appendChild(markers);
   }
 
   function initEmToggle() {
@@ -966,14 +971,16 @@
     document.getElementById('source-description').textContent = data.description;
   }
 
-  /* ---------------- card2 -> card3 transition ---------------- */
-  function moveScreenToCentre(rect, durationMs) {
-    rect.style.transformBox = 'fill-box';
-    rect.style.transformOrigin = 'center';
-    rect.style.transition = 'none';
+  /* ---------------- card2 -> card3 transition: zoom into the screen ---------------- */
+  function zoomIntoScreen(apparatusSvg, durationMs) {
+    /* The screen sits at (837, 130) in the 900x260 viewBox: 93% across, 50% down.
+     * Scaling the whole apparatus about that point reads as the camera zooming
+     * in until the white screen fills the frame and comes into focus. */
+    apparatusSvg.style.transformOrigin = '93% 50%';
+    apparatusSvg.style.transition = 'none';
     raf(() => {
-      rect.style.transition = `transform ${durationMs}ms var(--easing, ease-out)`;
-      rect.style.transform = 'translate(-397px, 0px) rotate(-90deg) scale(5)';
+      apparatusSvg.style.transition = `transform ${durationMs}ms var(--easing, ease-in-out)`;
+      apparatusSvg.style.transform = 'scale(9)';
     });
   }
 
@@ -989,12 +996,12 @@
     closeTransitionPanel();
     setNavDisabled(true);
 
+    /* Everything except the screen fades; the camera zooms toward the screen. */
     Array.from(apparatusSvg.children).forEach((child) => {
       if (child === screenRect || child.tagName.toLowerCase() === 'defs') return;
       fadeOut(child, 0, TRANSITION_FADE_MS);
     });
-
-    if (screenRect) moveScreenToCentre(screenRect, TRANSITION_MOVE_MS);
+    zoomIntoScreen(apparatusSvg, TRANSITION_MOVE_MS + 260);
 
     let startHeight = 0;
     try {
@@ -1020,6 +1027,8 @@
     trackTimeout(
       setTimeout(() => {
         apparatusSvg.style.display = 'none';
+        apparatusSvg.style.transform = '';
+        apparatusSvg.style.transition = 'none';
         resultSvg.classList.add('visible');
         renderResultScreen();
         heading.textContent = '3. The line spectrum';
@@ -1057,6 +1066,8 @@
     emToggle.classList.remove('active');
 
     apparatusSvg.style.display = '';
+    apparatusSvg.style.transform = '';
+    apparatusSvg.style.transition = 'none';
     wrap.style.transition = 'none';
     wrap.style.height = '';
 

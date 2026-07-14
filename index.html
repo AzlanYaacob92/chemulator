@@ -51,29 +51,31 @@
         the screen.
       </p>
 
-      <div class="apparatus-wrap" id="apparatus-wrap">
-        <svg id="apparatus-svg" class="stage-svg" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet"></svg>
-        <svg id="result-svg" class="stage-svg result-svg" viewBox="0 0 900 110" preserveAspectRatio="xMidYMid meet"></svg>
-      </div>
-
-      <!-- Opens inside this card when a spectral line is selected (hydrogen only):
-           the spectrum shrinks to half height, this panel fills the rest. -->
-      <div class="transition-panel" id="transition-panel" hidden>
-        <div class="transition-panel-header">
-          <p class="transition-panel-title" id="transition-panel-title"></p>
-          <div class="view-mode-toggle" role="group" aria-label="Transition view mode">
-            <button type="button" id="mode-levels" class="view-mode-btn active">Energy levels</button>
-            <button type="button" id="mode-atom" class="view-mode-btn">Atomic view</button>
-          </div>
+      <div class="result-layout" id="result-layout">
+        <div class="apparatus-wrap" id="apparatus-wrap">
+          <svg id="apparatus-svg" class="stage-svg" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet"></svg>
+          <svg id="result-svg" class="stage-svg result-svg" viewBox="0 0 900 110" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
-        <svg id="energy-svg" class="transition-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet"></svg>
-        <svg id="atom-svg" class="transition-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet" hidden></svg>
-        <p class="transition-caption" id="transition-caption"></p>
+
+        <!-- Opens beside the spectrum when a spectral line is selected (hydrogen only). -->
+        <div class="transition-panel" id="transition-panel" hidden>
+          <div class="transition-panel-header">
+            <p class="transition-panel-title" id="transition-panel-title"></p>
+            <div class="view-mode-toggle" role="group" aria-label="Transition view mode">
+              <button type="button" id="mode-levels" class="view-mode-btn active">Energy levels</button>
+              <button type="button" id="mode-atom" class="view-mode-btn">Atomic view</button>
+            </div>
+          </div>
+          <svg id="energy-svg" class="transition-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet"></svg>
+          <svg id="atom-svg" class="transition-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet" hidden></svg>
+          <p class="transition-caption" id="transition-caption"></p>
+        </div>
       </div>
 
       <div class="result-controls" id="result-controls" hidden>
         <button type="button" id="em-toggle" class="em-toggle-btn">Compare to full EM spectrum &darr;</button>
         <div class="em-reveal-wrap" id="em-reveal-wrap">
+          <p class="em-strip-label">Full electromagnetic spectrum (continuous)</p>
           <div id="em-bar-wrap" class="em-bar-wrap">
             <div id="em-bar" class="em-bar"></div>
           </div>
@@ -86,6 +88,8 @@
             <span>X-ray</span>
             <span>Gamma</span>
           </div>
+          <p class="em-strip-label" id="em-line-strip-label">This source&rsquo;s line spectrum, on the same axis</p>
+          <div id="em-line-strip" class="em-line-strip"></div>
         </div>
       </div>
 

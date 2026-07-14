@@ -85,10 +85,15 @@ function wait(ms) {
   assert(apparatusSvg.querySelectorAll('line').length > 0, 'Apparatus draws rays/beam/fan elements');
   assert(apparatusSvg.querySelectorAll('#apparatus-screen').length === 1, 'Apparatus has exactly one #apparatus-screen element');
 
-  /* ---- Next: play the forward morph transition ---- */
+  /* ---- Next: play the zoom-into-screen morph transition ---- */
   click(navNext);
   assert(navNext.disabled, 'Next is disabled immediately while the transition plays');
-  await wait(900);
+  await wait(120);
+  assert(
+    apparatusSvg.style.transform.includes('scale'),
+    'The apparatus zooms (scale transform) toward the screen during the transition'
+  );
+  await wait(800);
 
   assert(doc.getElementById('stage-heading').textContent.startsWith('3.'), 'Heading swaps to "3. The line spectrum"');
   assert(apparatusSvg.style.display === 'none', 'Apparatus SVG is hidden after the transition swap');
@@ -101,9 +106,10 @@ function wait(ms) {
   const wavelengthButtons = doc.querySelectorAll('.wavelength-btn');
   assert(wavelengthButtons.length === 4, 'Result view renders 4 wavelength buttons for hydrogen');
 
-  /* ---- selecting a line opens the split view: spectrum half + diagram half ---- */
+  /* ---- selecting a line opens the side-by-side split view ---- */
   click(wavelengthButtons[0]);
   assert(!transitionPanel.hidden, 'Selecting a line opens the transition panel');
+  assert(doc.getElementById('result-layout').classList.contains('split'), 'Selecting a line switches the layout to side-by-side split');
   assert(wavelengthButtons[0].classList.contains('active'), 'The selected wavelength button is marked active');
   assert(doc.getElementById('transition-panel-title').textContent.includes('n = 3'), 'Panel title names the n=3 -> n=2 transition for 656 nm');
 
@@ -142,20 +148,36 @@ function wait(ms) {
   assert(!energySvg.hasAttribute("hidden") && atomSvg.hasAttribute("hidden"), "Toggling back restores the energy-level view");
   assert(!!energySvg.querySelector('.js-electron'), 'The transition replays in the energy-level view');
 
-  /* ---- EM spectrum toggle still works alongside ---- */
+  /* ---- EM spectrum toggle: line spectrum sits UNDER the continuous bar ---- */
   const emToggle = doc.getElementById('em-toggle');
   const emRevealWrap = doc.getElementById('em-reveal-wrap');
   click(emToggle);
-  assert(emRevealWrap.classList.contains('phase-visible'), 'EM toggle reveals the EM spectrum bar');
+  assert(emRevealWrap.classList.contains('phase-visible'), 'EM toggle reveals the EM spectrum comparison');
   assert(doc.querySelectorAll('.em-band').length === 7, 'EM spectrum bar renders 7 bands');
-  assert(doc.querySelectorAll('.em-marker').length === 4, 'EM spectrum bar places 4 markers for hydrogen');
+  assert(doc.querySelectorAll('#em-bar .em-marker').length === 0, 'No line markers are overlaid on top of the continuous EM bar');
+  assert(doc.querySelectorAll('#em-line-strip .em-marker').length === 4, 'The 4 hydrogen lines render in the strip below the EM bar');
+  assert(
+    doc.getElementById('em-line-strip-label').textContent.includes('Hydrogen'),
+    'The line-strip label names the current source'
+  );
+  {
+    const barWrap = doc.getElementById('em-bar-wrap');
+    const strip = doc.getElementById('em-line-strip');
+    const relation = barWrap.compareDocumentPosition(strip);
+    assert(
+      (relation & window.Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      'The line-spectrum strip comes after (under) the continuous EM bar in the document'
+    );
+  }
   click(emToggle);
   assert(!emRevealWrap.classList.contains('phase-visible'), 'EM toggle hides it again');
 
-  /* ---- Back: result -> setup clears the panel ---- */
+  /* ---- Back: result -> setup clears the panel and split layout ---- */
   click(navBack);
   assert(apparatusSvg.style.display !== 'none', 'Back restores the apparatus SVG');
+  assert(apparatusSvg.style.transform === '', 'Back clears the zoom transform from the apparatus');
   assert(transitionPanel.hidden, 'Back closes the transition panel');
+  assert(!doc.getElementById('result-layout').classList.contains('split'), 'Back removes the side-by-side split layout');
   assert(doc.querySelectorAll('.js-electron').length === 0, 'Back clears any electron markers');
   assert(navBack.disabled, 'Back is disabled again on the setup view');
 
