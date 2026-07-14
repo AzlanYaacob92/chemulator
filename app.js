@@ -75,10 +75,21 @@
     el.style.strokeDasharray = String(length);
     el.style.strokeDashoffset = String(length);
     el.style.transition = 'none';
+    /* Force the browser to commit the fully-hidden initial state before the
+     * transition begins. Without this, style recalc can batch the initial and
+     * final dash offsets into one frame and the stroke appears already fully
+     * materialised instead of extending in. */
+    try {
+      void el.getBoundingClientRect();
+    } catch (err) {
+      /* jsdom: no layout — the fallback below still ends at the final state */
+    }
     setTimeout(() => {
-      el.style.transition = `stroke-dashoffset ${durationMs}ms ease-out`;
       raf(() => {
-        el.style.strokeDashoffset = '0';
+        raf(() => {
+          el.style.transition = `stroke-dashoffset ${durationMs}ms ease-out`;
+          el.style.strokeDashoffset = '0';
+        });
       });
     }, delayMs);
   }
@@ -503,11 +514,11 @@
       const x = 40 + (ln.pct / 100) * (W - 80);
 
       svg.appendChild(
-        svgEl('rect', { x: x - 14, y: 22, width: 28, height: H - 32, fill: ln.color, opacity: 0.3, filter: 'url(#resultBlur)' })
+        svgEl('rect', { x: x - 14, y: 34, width: 28, height: H - 44, fill: ln.color, opacity: 0.3, filter: 'url(#resultBlur)' })
       );
-      svg.appendChild(svgEl('rect', { x: x - 3, y: 26, width: 6, height: H - 40, rx: 3, fill: ln.color }));
+      svg.appendChild(svgEl('rect', { x: x - 3, y: 38, width: 6, height: H - 52, rx: 3, fill: ln.color }));
 
-      const fo = svgEl('foreignObject', { x: x - 48, y: 0, width: 96, height: 22 });
+      const fo = svgEl('foreignObject', { x: x - 60, y: 2, width: 120, height: 30 });
       const btn = document.createElement('button');
       btn.type = 'button';
       const interactive = isHydrogen();
