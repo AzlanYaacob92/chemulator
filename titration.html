@@ -723,7 +723,7 @@ document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click'
 (function () {
   var THEME_KEY = 'theme', btn = document.getElementById('theme-toggle');
   function isDark() { var a = document.documentElement.getAttribute('data-theme'); return a ? a === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches); }
-  function icon() { btn.textContent = isDark() ? '☀️' : '🌙'; }
+  function icon() { btn.textContent = isDark() ? '☀️' : '🌙'; btn.setAttribute('aria-pressed', String(isDark())); }
   icon();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { icon(); readTheme(); drawChart(); });
   btn.addEventListener('click', function () {

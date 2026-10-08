@@ -140,6 +140,7 @@
 
   function updateThemeToggleIcon(btn) {
     btn.textContent = currentIsDark() ? '\u2600\uFE0F' : '\uD83C\uDF19';
+    btn.setAttribute('aria-pressed', String(currentIsDark()));
   }
 
   function initThemeToggle() {
