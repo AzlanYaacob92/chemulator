@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chemulator · Acid–Base Titration</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --ink: #1c2433; --muted: #5b667a; --line: #dfe4ec;
+    --accent: #2563eb; --accent-soft: #e6eefc; --warn: #b45309; --warn-bg: #fff4e0;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  sub, sup { line-height: 0; }
+  .page { min-height: 100vh; display: flex; flex-direction: column; gap: 10px; padding: 10px 16px 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+
+  /* ---------- header + controls ---------- */
+  .top { padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
+  .brand h1 { font-size: 1.15rem; margin: 0; line-height: 1.2; }
+  .brand p { margin: 0; font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .ctl { display: flex; align-items: center; gap: 8px; }
+  .ctl label { font-weight: 600; font-size: .8rem; white-space: nowrap; }
+  .ctl select, .ctl input[type=number] {
+    padding: 5px 7px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .ctl input[type=number] { width: 74px; }
+  .ctl input[type=range] { width: 110px; }
+  .sep { width: 1px; align-self: stretch; background: var(--line); }
+  .info { width: 100%; display: flex; flex-wrap: wrap; gap: 2px 20px; font-size: .8rem; color: var(--muted); }
+  .info b { color: var(--ink); font-weight: 600; }
+  .warn { width: 100%; background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 5px 10px; font-size: .8rem; display: none; }
+
+  /* ---------- apparatus + curve ---------- */
+  .main { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 10px; height: clamp(320px, 46vh, 520px); flex: none; }
+  .sim { padding: 6px; min-height: 0; }
+  .sim svg { width: 100%; height: 100%; display: block; }
+  .chartcard { padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .plot { position: relative; flex: 1; min-height: 0; }
+  #chart { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-top: 6px; }
+  .vol-slider { flex: 1; min-width: 160px; }
+  .ro { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  .ro strong { color: var(--ink); font-size: 1rem; font-variant-numeric: tabular-nums; }
+  button {
+    font: inherit; font-size: .8rem; padding: 4px 9px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { background: #1d4fc4; }
+  .btngrp { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  /* ---------- calculation ---------- */
+  .calcbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; }
+  .calcbar #showCalc { font-weight: 700; font-size: .9rem; padding: 6px 14px; border-width: 2px; border-color: var(--accent); }
+  .chip.active { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+  .calcbar .note { margin-left: auto; font-size: .78rem; color: var(--muted); }
+  .calcbox { flex: 1; min-height: 240px; padding: 12px 16px; overflow: auto; }
+  .placeholder { color: var(--muted); margin: 6px 0; }
+  .chead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; border-left: 6px solid var(--accent); padding-left: 10px; margin-bottom: 10px; }
+  .chead h3 { margin: 0; font-size: 1.1rem; }
+  .chead span { color: var(--muted); }
+  .chead .res { margin-left: auto; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+  .chead .res small { font-weight: 400; color: var(--muted); font-size: .78rem; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+  .wstep { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: .92rem; }
+  .wstep h4 { margin: 0 0 6px; font-size: .92rem; display: flex; align-items: center; gap: 8px; }
+  .wstep h4 span { background: var(--accent); color: #fff; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .75rem; flex: none; }
+  .wstep p { margin: 4px 0; }
+  .eqn { font-weight: 600; }
+  table.ice { border-collapse: collapse; margin: 6px 0; width: 100%; background: #fff; font-variant-numeric: tabular-nums; }
+  table.ice th, table.ice td { border: 1px solid var(--line); padding: 3px 8px; text-align: center; font-size: .86rem; }
+  table.ice thead th { background: var(--accent-soft); }
+  table.ice .unit { display: block; font-weight: 400; font-size: .74rem; color: var(--muted); }
+  table.ice tbody th { text-align: left; background: #f8fafc; white-space: nowrap; }
+  .final { font-weight: 700; }
+
+  @media (max-width: 1000px) {
+    .main { grid-template-columns: 200px minmax(0, 1fr); }
+  }
+  @media (max-width: 700px) {
+    .main { grid-template-columns: 1fr; height: auto; }
+    .sim { height: 380px; }
+    .plot { height: 320px; flex: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <section class="card top">
+    <div class="brand"><p>Chemulator</p><h1>Acid–Base Titration</h1></div>
+    <div class="sep"></div>
+    <div class="ctl"><label for="acid">Acid (flask, 25 mL)</label><select id="acid"></select></div>
+    <div class="ctl"><label for="cA">Conc.</label><input type="range" id="cAr" min="0.01" max="1" step="0.01"><input type="number" id="cA" min="0.001" max="2" step="0.01"><span>M</span></div>
+    <div class="sep"></div>
+    <div class="ctl"><label for="base">Base (burette)</label><select id="base"></select></div>
+    <div class="ctl"><label for="cB">Conc.</label><input type="range" id="cBr" min="0.01" max="1" step="0.01"><input type="number" id="cB" min="0.001" max="2" step="0.01"><span>M</span></div>
+    <div class="info" id="info"></div>
+    <div class="warn" id="warn"></div>
+  </section>
+
+  <main class="main">
+    <section class="card sim">
+      <svg id="sim" viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Burette above a conical flask">
+        <defs>
+          <clipPath id="tubeClip"><rect x="167" y="40" width="26" height="340" rx="2"/></clipPath>
+          <clipPath id="flaskClip"><path d="M160 490 L160 535 L98 600 Q92 612 106 612 L254 612 Q268 612 262 600 L200 535 L200 490 Z"/></clipPath>
+        </defs>
+        <rect id="buretteLiquid" x="167" y="40" width="26" height="340" fill="#cfe6f7" clip-path="url(#tubeClip)"/>
+        <g id="ticks" stroke="#394150" stroke-width="1"></g>
+        <rect x="167" y="40" width="26" height="340" rx="2" fill="none" stroke="#394150" stroke-width="2"/>
+        <path d="M167 380 L174 420 L186 420 L193 380" fill="#cfe6f7" stroke="#394150" stroke-width="2"/>
+        <rect x="150" y="386" width="60" height="9" rx="3" fill="#8b95a7" stroke="#394150"/>
+        <rect x="205" y="383" width="22" height="15" rx="3" fill="#2563eb"/>
+        <text id="buretteLabel" x="180" y="22" text-anchor="middle" font-size="16" font-weight="600" fill="#1c2433"></text>
+        <g id="drops"></g>
+        <g>
+          <rect id="flaskLiquid" x="80" y="570" width="200" height="60" clip-path="url(#flaskClip)"/>
+          <path d="M160 490 L160 535 L98 600 Q92 612 106 612 L254 612 Q268 612 262 600 L200 535 L200 490" fill="none" stroke="#394150" stroke-width="2.5" stroke-linejoin="round"/>
+          <path d="M153 490 L207 490" stroke="#394150" stroke-width="3" stroke-linecap="round"/>
+        </g>
+        <text id="flaskLabel" x="180" y="634" text-anchor="middle" font-size="14" fill="#5b667a"></text>
+      </svg>
+    </section>
+
+    <section class="card chartcard">
+      <div class="plot"><canvas id="chart"></canvas></div>
+      <div class="strip">
+        <input class="vol-slider" id="vol" type="range" min="0" max="50" step="0.01" value="0" aria-label="Volume of base added" />
+        <span class="ro">Base added <strong id="roAdd">0.00 mL</strong></span>
+        <span class="ro">pH <strong id="roPH">–</strong></span>
+        <div class="btngrp">
+          <button id="run" class="primary">▶ Run</button>
+          <button data-add="0.1">+0.1</button><button data-add="1">+1</button><button data-add="5">+5 mL</button>
+          <button id="reset">↺ Reset</button>
+          <button data-goto="0.5">½ eq.</button><button data-goto="1">Eq.</button><button data-goto="1.5">3⁄2 eq.</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="calcbar">
+    <button id="showCalc" aria-pressed="false">Show calculation ▾</button>
+    <button class="chip" data-key="init">Initial (0 mL)</button>
+    <button class="chip" data-key="half">½ equivalence</button>
+    <button class="chip" data-key="eq">Equivalence</button>
+    <span class="note" id="indNote"></span>
+  </div>
+  <section class="card calcbox" id="calc"></section>
+</div>
+
+<script>
+/* ============================================================
+ * Data
+ * ============================================================ */
+const KW = 1.0e-14;          // 25 °C
+const VA = 25.0;             // mL of acid in flask
+const BURETTE_MAX = 50.0;    // mL
+
+const ACIDS = {
+  HNO3:    { html: 'HNO<sub>3</sub>',     anion: 'NO<sub>3</sub><sup>−</sup>',     strong: true },
+  HCl:     { html: 'HCl',                 anion: 'Cl<sup>−</sup>',                 strong: true },
+  HBr:     { html: 'HBr',                 anion: 'Br<sup>−</sup>',                 strong: true },
+  CH3COOH: { html: 'CH<sub>3</sub>COOH',  anion: 'CH<sub>3</sub>COO<sup>−</sup>', strong: false, ka: 1.8e-5 },
+  HCOOH:   { html: 'HCOOH',               anion: 'HCOO<sup>−</sup>',               strong: false, ka: 1.8e-4 },
+};
+const BASES = {
+  NaOH:   { html: 'NaOH',   cation: 'Na<sup>+</sup>', strong: true },
+  KOH:    { html: 'KOH',    cation: 'K<sup>+</sup>',  strong: true },
+  LiOH:   { html: 'LiOH',   cation: 'Li<sup>+</sup>', strong: true },
+  NH3:    { html: 'NH<sub>3</sub>',  conj: 'NH<sub>4</sub><sup>+</sup>',  strong: false, kb: 1.8e-5 },
+  CH3NH2: { html: 'CH<sub>3</sub>NH<sub>2</sub>', conj: 'CH<sub>3</sub>NH<sub>3</sub><sup>+</sup>', strong: false, kb: 4.4e-4 },
+};
+/* indicator: pH range and colour stops [pH, [r,g,b,a]] */
+const INDICATORS = {
+  phenolphthalein: {
+    name: 'Phenolphthalein', lo: 8.2, hi: 10.0, change: 'colourless → pink',
+    stops: [[0,[205,228,245,.45]],[8.2,[205,228,245,.45]],[10,[240,50,155,.85]],[14,[225,30,130,.9]]],
+  },
+  methylorange: {
+    name: 'Methyl orange', lo: 3.1, hi: 4.4, change: 'red → yellow',
+    stops: [[0,[230,45,40,.85]],[3.1,[230,45,40,.85]],[3.75,[245,138,31,.85]],[4.4,[249,212,35,.85]],[14,[249,212,35,.85]]],
+  },
+};
+
+/* ============================================================
+ * State
+ * ============================================================ */
+const S = {
+  acid: 'HCl', base: 'NaOH', Ca: 0.100, Cb: 0.100,
+  cur: 0, target: 0, running: false,
+  curve: [], hoverV: null,
+  showCalc: false, calcKey: null,
+};
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+ * Chemistry helpers
+ * ============================================================ */
+const A = () => ACIDS[S.acid];
+const B = () => BASES[S.base];
+const veq = () => S.Ca * VA / S.Cb;
+const vmax = () => Math.min(2 * veq(), BURETTE_MAX);
+const pKa = () => -Math.log10(A().ka);
+const pKb = () => -Math.log10(B().kb);
+const log10 = Math.log10;
+
+/* Strong acid + weak base → methyl orange; every other pairing → phenolphthalein. */
+function indicatorKey() { return (A().strong && !B().strong) ? 'methylorange' : 'phenolphthalein'; }
+
+/* Exact pH from the charge balance  [H+] + [cation] = [OH-] + [anion]. */
+function exactPH(Vb) {
+  const V = VA + Vb;
+  const a = S.Ca * VA / V, b = S.Cb * Vb / V;
+  const ac = A(), bs = B();
+  const kaConj = bs.strong ? 0 : KW / bs.kb;
+  const g = h => {
+    const cat = bs.strong ? b : b * h / (h + kaConj);
+    const an = ac.strong ? a : a * ac.ka / (ac.ka + h);
+    return h + cat - KW / h - an;
+  };
+  let lo = -2, hi = 16;              // bisection on pH
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (g(Math.pow(10, -mid)) > 0) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/* ---------- formatting ---------- */
+const fx = (x, d = 3) => (Math.abs(x) < 1e-9 ? '0' : Number(x.toPrecision(d)).toString());
+const f2 = x => x.toFixed(2);
+function sci(x) {
+  if (x === 0) return '0';
+  const e = Math.floor(Math.log10(x)), m = x / Math.pow(10, e);
+  if (e >= -2 && e <= 3) return fx(x, 3);
+  return `${m.toFixed(2)} × 10<sup>${String(e).replace('-', '−')}</sup>`;
+}
+
+/* ============================================================
+ * Working (calculation) — only for initial, ½ eq and eq
+ * ============================================================ */
+const table = (head, rows, unit = 'mol dm<sup>−3</sup>') =>
+  `<table class="ice"><thead><tr><th></th>${head.map(h => `<th>${h}<span class="unit">/ ${unit}</span></th>`).join('')}</tr></thead><tbody>` +
+  rows.map(r => `<tr><th>${r[0]}</th>${r.slice(1).map(c => `<td>${c}</td>`).join('')}</tr>`).join('') +
+  `</tbody></table>`;
+const step = (n, title, body) => `<div class="wstep"><h4><span>${n}</span>${title}</h4>${body}</div>`;
+
+function working(Vb) {
+  const ac = A(), bs = B(), Ca = S.Ca, Cb = S.Cb;
+  const nA = Ca * VA, nB = Cb * Vb, V = VA + Vb, Veq = veq();
+  const tol = 1e-9 * nA;
+  const H = 'H<sup>+</sup>', OH = 'OH<sup>−</sup>', W = 'H<sub>2</sub>O';
+  const steps = []; let n = 1, pH;
+  const add = (title, body) => steps.push(step(n++, title, body));
+
+  /* ICF table for the neutralisation reaction (amounts in mmol) */
+  const icf = () => {
+    const m = Math.min(nA, nB);
+    const sa = ac.strong ? H : ac.html, sb = bs.strong ? OH : bs.html;
+    const prods = [];
+    if (!ac.strong) prods.push(ac.anion);
+    if (!bs.strong) prods.push(bs.conj);
+    if (!prods.length) prods.push(W);
+    const rhs = prods.join(' + ') + (bs.strong && !ac.strong ? ' + ' + W : '');
+    add('Neutralisation (amounts in mmol)',
+      `<p class="eqn">${sa} + ${sb} → ${rhs}</p>` +
+      table([sa, sb, ...prods], [
+        ['Initial', fx(nA), fx(nB), ...prods.map(() => '0')],
+        ['Change', '−' + fx(m), '−' + fx(m), ...prods.map(() => '+' + fx(m))],
+        ['Final', fx(nA - m), fx(nB - m), ...prods.map(() => fx(m))],
+      ], 'mmol') +
+      `<p>n(${ac.html}) = ${fx(Ca)} × ${f2(VA)} = ${fx(nA)} mmol;&nbsp; n(${bs.html}) = ${fx(Cb)} × ${fx(Vb, 4)} = ${fx(nB)} mmol</p>`);
+  };
+
+  if (nB < 1e-12) {
+    /* ---------- initial ---------- */
+    if (ac.strong) {
+      add(`Ionisation of ${ac.html} (strong acid)`,
+        `<p class="eqn">${ac.html} → ${H} + ${ac.anion}</p>` +
+        table([ac.html, H, ac.anion], [
+          ['Initial', fx(Ca), '0', '0'],
+          ['Change', '−' + fx(Ca), '+' + fx(Ca), '+' + fx(Ca)],
+          ['Equilibrium', '0', fx(Ca), fx(Ca)],
+        ]) + `<p>Complete ionisation, so [H<sup>+</sup>] = ${fx(Ca)} mol dm<sup>−3</sup></p>`);
+      pH = -log10(Ca);
+      add('pH', `<p class="final">pH = −log(${fx(Ca)}) = ${f2(pH)}</p>`);
+    } else {
+      add(`Ionisation of ${ac.html} (weak acid)`,
+        `<p class="eqn">${ac.html} ⇌ ${H} + ${ac.anion}</p>` +
+        table([ac.html, H, ac.anion], [
+          ['Initial', fx(Ca), '0', '0'],
+          ['Change', '−x', '+x', '+x'],
+          ['Equilibrium', `${fx(Ca)} − x`, 'x', 'x'],
+        ]));
+      const x = Math.sqrt(ac.ka * Ca), pct = 100 * x / Ca;
+      add('Solve for x',
+        `<p>K<sub>a</sub> = ${sci(ac.ka)} = x² / (${fx(Ca)} − x) ≈ x² / ${fx(Ca)}</p>` +
+        `<p>x = √(${sci(ac.ka)} × ${fx(Ca)}) = ${sci(x)} mol dm<sup>−3</sup> = [H<sup>+</sup>]</p>` +
+        `<p>Check: x/${fx(Ca)} × 100 = ${pct.toFixed(2)}% ${pct < 5 ? '(&lt; 5%, approximation valid)' : '(≥ 5%: approximation is rough — see exact value)'}</p>`);
+      pH = -log10(x);
+      add('pH', `<p class="final">pH = −log(${sci(x)}) = ${f2(pH)}</p>`);
+    }
+  } else if (Math.abs(nB - nA) <= tol) {
+    /* ---------- equivalence ---------- */
+    icf();
+    const Cs = nA / V;
+    add('Volume at equivalence',
+      `<p>n(base) = n(acid)</p><p>V<sub>eq</sub> = ${fx(nA)} mmol ÷ ${fx(Cb)} mol dm<sup>−3</sup> = ${fx(Veq, 4)} mL</p>` +
+      `<p>Total volume = ${f2(VA)} + ${fx(Veq, 4)} = ${fx(V, 4)} mL</p>`);
+    if (ac.strong && bs.strong) {
+      pH = 7;
+      add('pH', `<p>Only water and the neutral salt (${bs.cation}${ac.anion}) remain. Neither ion hydrolyses.</p><p class="final">pH = 7.00 (25 °C)</p>`);
+    } else if (!ac.strong && bs.strong) {
+      const kbp = KW / ac.ka, x = Math.sqrt(kbp * Cs), pOH = -log10(x);
+      pH = 14 - pOH;
+      add(`Hydrolysis of ${ac.anion}`,
+        `<p>c(${ac.anion}) = ${fx(nA)} ÷ ${fx(V, 4)} = ${fx(Cs)} mol dm<sup>−3</sup></p>` +
+        `<p class="eqn">${ac.anion} + ${W} ⇌ ${ac.html} + ${OH}</p>` +
+        table([ac.anion, ac.html, OH], [
+          ['Initial', fx(Cs), '0', '0'],
+          ['Change', '−x', '+x', '+x'],
+          ['Equilibrium', `${fx(Cs)} − x`, 'x', 'x'],
+        ]));
+      add('Solve for x',
+        `<p>K<sub>b</sub> = K<sub>w</sub>/K<sub>a</sub> = ${sci(KW)} ÷ ${sci(ac.ka)} = ${sci(kbp)}</p>` +
+        `<p>K<sub>b</sub> = x² / c ⇒ x = √(${sci(kbp)} × ${fx(Cs)}) = ${sci(x)} = [OH<sup>−</sup>]</p>` +
+        `<p>pOH = −log(${sci(x)}) = ${f2(pOH)}</p><p class="final">pH = 14 − ${f2(pOH)} = ${f2(pH)}</p>`);
+    } else if (ac.strong && !bs.strong) {
+      const kap = KW / bs.kb, x = Math.sqrt(kap * Cs);
+      pH = -log10(x);
+      add(`Hydrolysis of ${bs.conj}`,
+        `<p>c(${bs.conj}) = ${fx(nA)} ÷ ${fx(V, 4)} = ${fx(Cs)} mol dm<sup>−3</sup></p>` +
+        `<p class="eqn">${bs.conj} ⇌ ${bs.html} + ${H}</p>` +
+        table([bs.conj, bs.html, H], [
+          ['Initial', fx(Cs), '0', '0'],
+          ['Change', '−x', '+x', '+x'],
+          ['Equilibrium', `${fx(Cs)} − x`, 'x', 'x'],
+        ]));
+      add('Solve for x',
+        `<p>K<sub>a</sub> = K<sub>w</sub>/K<sub>b</sub> = ${sci(KW)} ÷ ${sci(bs.kb)} = ${sci(kap)}</p>` +
+        `<p>K<sub>a</sub> = x² / c ⇒ x = √(${sci(kap)} × ${fx(Cs)}) = ${sci(x)} = [H<sup>+</sup>]</p>` +
+        `<p class="final">pH = −log(${sci(x)}) = ${f2(pH)}</p>`);
+    } else {
+      pH = 0.5 * (14 + pKa() - pKb());
+      add('Both ions hydrolyse',
+        `<p>${ac.anion} + ${W} ⇌ ${ac.html} + ${OH}&nbsp; (K<sub>b</sub> = K<sub>w</sub>/K<sub>a</sub>)</p>` +
+        `<p>${bs.conj} ⇌ ${bs.html} + ${H}&nbsp; (K<sub>a</sub>′ = K<sub>w</sub>/K<sub>b</sub>)</p>` +
+        `<p>With equal concentrations: [H<sup>+</sup>] = √(K<sub>w</sub>·K<sub>a</sub>/K<sub>b</sub>)</p>`);
+      add('pH',
+        `<p>pK<sub>a</sub> = ${f2(pKa())},&nbsp; pK<sub>b</sub> = ${f2(pKb())}</p>` +
+        `<p class="final">pH = ½(14 + ${f2(pKa())} − ${f2(pKb())}) = ${f2(pH)}</p>` +
+        `<p>The curve is nearly flat here, so no indicator gives a sharp end-point.</p>`);
+    }
+  } else {
+    /* ---------- before equivalence (e.g. half-equivalence) ---------- */
+    icf();
+    if (Math.abs(nB - nA / 2) <= tol)
+      add('Half-equivalence volume', `<p>V = ½V<sub>eq</sub> = ½ × ${fx(Veq, 4)} = ${fx(Veq / 2, 4)} mL</p><p>Total volume = ${fx(V, 4)} mL</p>`);
+    if (ac.strong) {
+      const nH = nA - nB, h = nH / V;
+      pH = -log10(h);
+      add('Excess acid sets the pH',
+        `<p>n(H<sup>+</sup>) left = ${fx(nH)} mmol in ${fx(V, 4)} mL</p>` +
+        `<p>[H<sup>+</sup>] = ${fx(nH)} ÷ ${fx(V, 4)} = ${sci(h)} mol dm<sup>−3</sup></p>` +
+        (bs.strong ? '' : `<p>${bs.conj} is a very weak acid, so its contribution is negligible next to the leftover strong acid.</p>`) +
+        `<p class="final">pH = −log(${sci(h)}) = ${f2(pH)}</p>`);
+    } else {
+      const nHA = nA - nB, cHA = nHA / V, cA = nB / V;
+      add('Buffer: concentrations',
+        `<p>[${ac.html}] = ${fx(nHA)} ÷ ${fx(V, 4)} = ${fx(cHA)} mol dm<sup>−3</sup></p>` +
+        `<p>[${ac.anion}] = ${fx(nB)} ÷ ${fx(V, 4)} = ${fx(cA)} mol dm<sup>−3</sup></p>` +
+        `<p class="eqn">${ac.html} ⇌ ${H} + ${ac.anion}</p>` +
+        table([ac.html, H, ac.anion], [
+          ['Initial', fx(cHA), '≈ 0', fx(cA)],
+          ['Change', '−x', '+x', '+x'],
+          ['Equilibrium', `${fx(cHA)} − x`, 'x', `${fx(cA)} + x`],
+        ]));
+      pH = pKa() + log10(cA / cHA);
+      const half = Math.abs(nB - nA / 2) <= tol;
+      add('Solve (x is very small)',
+        `<p>K<sub>a</sub> = ${sci(ac.ka)} = x(${fx(cA)}) / ${fx(cHA)}, so [H<sup>+</sup>] = K<sub>a</sub> × [${ac.html}]/[${ac.anion}]</p>` +
+        `<p>pK<sub>a</sub> = −log(${sci(ac.ka)}) = ${f2(pKa())}</p>` +
+        (half
+          ? `<p>[${ac.html}] = [${ac.anion}], so the log term is 0.</p><p class="final">pH = pK<sub>a</sub> = ${f2(pH)}</p>`
+          : `<p class="final">pH = ${f2(pKa())} + log(${fx(cA)}/${fx(cHA)}) = ${f2(pH)}</p>`));
+    }
+  }
+  return { pH, html: steps.join('') };
+}
+
+/* ============================================================
+ * Indicator colour
+ * ============================================================ */
+function indColour(pH) {
+  const stops = INDICATORS[indicatorKey()].stops;
+  let c = stops[stops.length - 1][1];
+  if (pH <= stops[0][0]) c = stops[0][1];
+  else for (let i = 0; i < stops.length - 1; i++) {
+    const [p0, c0] = stops[i], [p1, c1] = stops[i + 1];
+    if (pH >= p0 && pH <= p1) {
+      const t = (pH - p0) / (p1 - p0 || 1);
+      c = c0.map((v, k) => v + (c1[k] - v) * t);
+      break;
+    }
+  }
+  return `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${c[3].toFixed(2)})`;
+}
+
+/* ============================================================
+ * Setup UI
+ * ============================================================ */
+function fillSelect(sel, group1, group2, items) {
+  const og = (label, test) => {
+    const g = document.createElement('optgroup'); g.label = label;
+    for (const [k, v] of Object.entries(items)) if (test(v)) {
+      const o = document.createElement('option'); o.value = k;
+      o.textContent = k.replace(/(\d)/g, d => '₀₁₂₃₄₅₆₇₈₉'[d]);
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
+  };
+  og(group1, v => v.strong); og(group2, v => !v.strong);
+}
+fillSelect($('acid'), 'Strong acids', 'Weak acids', ACIDS);
+fillSelect($('base'), 'Strong bases', 'Weak bases', BASES);
+$('acid').value = S.acid; $('base').value = S.base;
+
+(function buildTicks() {
+  let s = '';
+  for (let i = 0; i <= 50; i++) {
+    const y = 40 + i * 6.8, major = i % 10 === 0, mid = i % 5 === 0;
+    const len = major ? 14 : mid ? 10 : 5;
+    s += `<line x1="167" x2="${167 - len}" y1="${y}" y2="${y}"/>`;
+    if (major) s += `<text x="${167 - 18}" y="${y + 4}" text-anchor="end" font-size="12" stroke="none" fill="#394150">${i}</text>`;
+  }
+  $('ticks').innerHTML = s;
+})();
+
+/* ============================================================
+ * Curve + info
+ * ============================================================ */
+function marks() {
+  const Ve = veq();
+  return [
+    { key: 'init', name: 'Initial', v: 0, colour: '#6b7280' },
+    { key: 'half', name: '½ equivalence', v: Ve / 2, colour: '#0f9d8a' },
+    { key: 'eq', name: 'Equivalence point', v: Ve, colour: '#dc2626' },
+    { key: 'three', name: '3/2 equivalence', v: 1.5 * Ve, colour: '#9333ea' },
+  ];
+}
+
+function rebuild(resetVolume = true) {
+  const Ve = veq(), xmax = 2 * Ve, N = 600;
+  S.curve = [];
+  for (let i = 0; i <= N; i++) { const v = xmax * i / N; S.curve.push([v, exactPH(v)]); }
+  for (const m of marks()) S.curve.push([m.v, exactPH(m.v)]);
+  S.curve.sort((a, b) => a[0] - b[0]);
+
+  const Vm = vmax(), vol = $('vol');
+  vol.max = Vm; vol.step = Math.max(0.01, +(Vm / 2000).toFixed(3));
+  if (resetVolume) { S.cur = S.target = 0; S.running = false; $('run').textContent = '▶ Run'; }
+  else { S.cur = S.target = Math.min(S.cur, Vm); }
+
+  const ac = A(), bs = B(), key = indicatorKey(), ind = INDICATORS[key];
+  const parts = [];
+  parts.push(ac.strong ? `<span><b>${ac.html}</b>: strong acid</span>` : `<span><b>${ac.html}</b>: K<sub>a</sub> = <b>${sci(ac.ka)}</b> (pK<sub>a</sub> ${f2(pKa())})</span>`);
+  parts.push(bs.strong ? `<span><b>${bs.html}</b>: strong base</span>` : `<span><b>${bs.html}</b>: K<sub>b</sub> = <b>${sci(bs.kb)}</b> (pK<sub>b</sub> ${f2(pKb())})</span>`);
+  parts.push(`<span>V<sub>eq</sub> = <b>${fx(Ve, 4)} mL</b></span>`);
+  $('info').innerHTML = parts.join('');
+  $('buretteLabel').textContent = `${fx(S.Cb)} M ${bs.html.replace(/<\/?sub>/g, '')}`;
+  $('flaskLabel').textContent = `25 mL ${fx(S.Ca)} M ${ac.html.replace(/<\/?sub>/g, '')}`;
+  $('indNote').innerHTML = `Indicator: <b>${ind.name}</b> (pH ${ind.lo}–${ind.hi}, ${ind.change})` +
+    (!ac.strong && !bs.strong ? ' — weak/weak: colour change is gradual, not sharp' : '');
+
+  const w = $('warn');
+  if (1.5 * Ve > BURETTE_MAX) {
+    w.style.display = 'block';
+    w.textContent = `A 50 mL burette cannot reach 3⁄2 V_eq (${fx(1.5 * Ve, 4)} mL). Raise the base concentration or lower the acid concentration.`;
+  } else w.style.display = 'none';
+
+  renderCalc();
+  refresh();
+}
+
+/* ============================================================
+ * Calculation panel
+ * ============================================================ */
+function renderCalc() {
+  const box = $('calc');
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', S.showCalc && c.dataset.key === S.calcKey));
+  const btn = $('showCalc');
+  btn.setAttribute('aria-pressed', S.showCalc);
+  btn.classList.toggle('primary', S.showCalc);
+  btn.textContent = S.showCalc ? 'Hide calculation ▴' : 'Show calculation ▾';
+  if (!S.showCalc || !S.calcKey) {
+    box.innerHTML = `<p class="placeholder">Press <b>Show calculation</b>, or click the <b>Initial</b>, <b>½ equivalence</b> or <b>Equivalence</b> point on the curve, to see how the pH is worked out.</p>`;
+    return;
+  }
+  const m = marks().find(x => x.key === S.calcKey), w = working(m.v), ex = exactPH(m.v);
+  box.innerHTML =
+    `<div class="chead" style="border-left-color:${m.colour}"><h3>${m.name}</h3>` +
+    `<span>V(base) = ${fx(m.v, 4)} mL${m.v > BURETTE_MAX ? ' (beyond a 50 mL burette)' : ''}</span>` +
+    `<span class="res">pH = ${f2(w.pH)} <small>(exact full-equilibrium value: ${f2(ex)})</small></span></div>` +
+    `<div class="steps">${w.html}</div>`;
+}
+function selectPoint(key) {
+  S.calcKey = key; S.showCalc = true;
+  gotoV(marks().find(m => m.key === key).v);
+  renderCalc();
+}
+$('showCalc').addEventListener('click', () => {
+  S.showCalc = !S.showCalc;
+  if (S.showCalc && !S.calcKey) {
+    // start from the labelled point closest to the current volume
+    const cand = marks().slice(0, 3);
+    S.calcKey = cand.reduce((a, b) => Math.abs(b.v - S.cur) < Math.abs(a.v - S.cur) ? b : a).key;
+  }
+  renderCalc();
+});
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => selectPoint(c.dataset.key)));
+
+/* ============================================================
+ * Rendering the simulator
+ * ============================================================ */
+function refresh() {
+  const v = S.cur, pH = exactPH(v);
+  const y = 40 + v * 6.8;
+  $('buretteLiquid').setAttribute('y', y);
+  $('buretteLiquid').setAttribute('height', 380 - y);
+  $('roAdd').textContent = v.toFixed(2) + ' mL';
+  $('roPH').textContent = pH.toFixed(2);
+  if (document.activeElement !== $('vol')) $('vol').value = v;
+
+  const frac = (VA + v) / (VA + vmax());
+  S.surface = 585 - 45 * frac;
+  const fl = $('flaskLiquid');
+  fl.setAttribute('y', S.surface); fl.setAttribute('height', 640 - S.surface);
+  fl.setAttribute('fill', indColour(pH));
+
+  const Vm = vmax(), Ve = veq();
+  document.querySelectorAll('[data-goto]').forEach(b => b.disabled = Ve * +b.dataset.goto > Vm + 1e-9);
+  document.querySelectorAll('[data-add]').forEach(b => b.disabled = v >= Vm - 1e-9);
+  $('run').disabled = v >= Vm - 1e-9 && !S.running;
+  drawChart();
+}
+
+function setVolume(v, animate) {
+  v = Math.max(0, Math.min(vmax(), v));
+  S.target = v;
+  if (!animate) S.cur = v;
+}
+function gotoV(v) { S.running = false; $('run').textContent = '▶ Run'; setVolume(v, true); }
+
+/* ============================================================
+ * Drops + animation loop
+ * ============================================================ */
+const drops = [];
+let spawnAcc = 0;
+function renderDrops() {
+  $('drops').innerHTML = drops.map(d => `<ellipse cx="180" cy="${d.y.toFixed(1)}" rx="3.2" ry="4.4" fill="#9ccaf0" stroke="#394150" stroke-width=".6"/>`).join('');
+}
+const JUMP_RATE = 8;   // mL/s while following the target
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (S.running) {
+    const near = Math.abs(S.target - veq()) < 1.0;          // slow down near the end-point
+    S.target = Math.min(vmax(), S.target + (near ? 0.6 : 3) * dt);
+    if (S.target >= vmax() - 1e-9) { S.running = false; $('run').textContent = '▶ Run'; }
+  }
+  if (S.cur !== S.target) {
+    const d = S.target - S.cur;
+    const stp = Math.sign(d) * Math.min(Math.abs(d), JUMP_RATE * dt);
+    S.cur += stp;
+    if (stp > 0) { spawnAcc += stp; if (spawnAcc > 0.3) { spawnAcc = 0; drops.push({ y: 424, vy: 20 }); } }
+    refresh();
+  }
+  if (drops.length) {
+    for (const d of drops) { d.vy += 900 * dt; d.y += d.vy * dt; }
+    while (drops.length && drops[0].y >= (S.surface || 560)) drops.shift();
+    renderDrops();
+  } else if ($('drops').firstChild) $('drops').innerHTML = '';
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+ * Chart
+ * ============================================================ */
+const cv = $('chart'), ctx = cv.getContext('2d');
+const M = { l: 46, r: 14, t: 12, b: 40 };
+function geom() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const xmax = 2 * veq();
+  return { w, h, xmax, X: v => M.l + v / xmax * (w - M.l - M.r), Y: p => M.t + (14 - Math.min(14, Math.max(0, p))) / 14 * (h - M.t - M.b) };
+}
+function niceStep(range) {
+  const raw = range / 8, p = Math.pow(10, Math.floor(log10(raw))), n = raw / p;
+  return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p;
+}
+function drawChart() {
+  const { w, h, xmax, X, Y } = geom();
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = '12px system-ui, sans-serif';
+  const ind = INDICATORS[indicatorKey()];
+
+  ctx.fillStyle = 'rgba(245,158,11,.15)';
+  ctx.fillRect(M.l, Y(ind.hi), w - M.l - M.r, Y(ind.lo) - Y(ind.hi));
+  ctx.fillStyle = '#b45309'; ctx.textAlign = 'right';
+  ctx.fillText(`${ind.name} range`, w - M.r - 4, Y(ind.hi) + 13);
+
+  ctx.strokeStyle = '#e5e9f0'; ctx.fillStyle = '#5b667a'; ctx.lineWidth = 1;
+  ctx.textAlign = 'right';
+  for (let p = 0; p <= 14; p += 2) {
+    ctx.beginPath(); ctx.moveTo(M.l, Y(p)); ctx.lineTo(w - M.r, Y(p)); ctx.stroke();
+    ctx.fillText(p, M.l - 6, Y(p) + 4);
+  }
+  const step = niceStep(xmax);
+  ctx.textAlign = 'center';
+  for (let v = 0; v <= xmax + 1e-9; v += step) {
+    ctx.beginPath(); ctx.moveTo(X(v), M.t); ctx.lineTo(X(v), h - M.b); ctx.stroke();
+    ctx.fillText(+v.toFixed(3), X(v), h - M.b + 15);
+  }
+  ctx.strokeStyle = '#394150'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(M.l, M.t, w - M.l - M.r, h - M.t - M.b);
+  ctx.fillStyle = '#1c2433'; ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('Volume of base added / mL', M.l + (w - M.l - M.r) / 2, h - 6);
+  ctx.save(); ctx.translate(13, M.t + (h - M.t - M.b) / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('pH', 0, 0); ctx.restore();
+
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = '#dc262688'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X(veq()), M.t); ctx.lineTo(X(veq()), h - M.b); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (xmax > BURETTE_MAX) {
+    ctx.fillStyle = 'rgba(100,100,100,.12)';
+    ctx.fillRect(X(BURETTE_MAX), M.t, w - M.r - X(BURETTE_MAX), h - M.t - M.b);
+    ctx.fillStyle = '#5b667a'; ctx.textAlign = 'left';
+    ctx.fillText('beyond 50 mL burette', X(BURETTE_MAX) + 4, h - M.b - 6);
+  }
+
+  ctx.strokeStyle = '#1f3a8a'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  S.curve.forEach(([v, p], i) => i ? ctx.lineTo(X(v), Y(p)) : ctx.moveTo(X(v), Y(p)));
+  ctx.stroke();
+
+  ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'left';
+  for (const m of marks()) {
+    const p = exactPH(m.v), px = X(m.v), py = Y(p);
+    const calcPoint = m.key !== 'three';
+    ctx.fillStyle = m.colour; ctx.beginPath(); ctx.arc(px, py, calcPoint ? 7 : 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = S.showCalc && S.calcKey === m.key ? '#2563eb' : '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
+    const txt = `${m.name}: ${fx(m.v, 4)} mL, pH ${f2(p)}`;
+    const tw = ctx.measureText(txt).width;
+    let tx = px + 10, ty = m.key === 'init' ? py - 10 : py + 20;
+    tx = Math.min(tx, w - M.r - tw - 4);
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(tx - 3, ty - 12, tw + 6, 16);
+    ctx.fillStyle = m.colour; ctx.fillText(txt, tx, ty);
+  }
+
+  const pc = exactPH(S.cur), cx = X(S.cur), cy = Y(pc);
+  ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, h - M.b); ctx.moveTo(M.l, cy); ctx.lineTo(cx, cy); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = indColour(pc); ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 7); ctx.fill(); ctx.stroke();
+
+  if (S.hoverV != null) {
+    const hp = exactPH(S.hoverV), hx = X(S.hoverV);
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hx, M.t); ctx.lineTo(hx, h - M.b); ctx.stroke();
+    const t = `${S.hoverV.toFixed(2)} mL → pH ${hp.toFixed(2)}`;
+    const tw = ctx.measureText(t).width;
+    const bx = Math.min(hx + 8, w - M.r - tw - 10), by = M.t + 6;
+    ctx.fillStyle = '#1c2433'; ctx.fillRect(bx, by, tw + 10, 20);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(t, bx + 5, by + 14);
+  }
+}
+function chartPos(ev) {
+  const r = cv.getBoundingClientRect(), { xmax, w } = geom();
+  const x = ev.clientX - r.left, y = ev.clientY - r.top;
+  return { x, y, v: Math.max(0, Math.min(xmax, (x - M.l) / (w - M.l - M.r) * xmax)) };
+}
+function markAt(x, y) {
+  const { X, Y } = geom();
+  return marks().slice(0, 3).find(m => Math.hypot(X(m.v) - x, Y(exactPH(m.v)) - y) <= 12);
+}
+cv.addEventListener('mousemove', e => {
+  const p = chartPos(e);
+  S.hoverV = p.v;
+  cv.style.cursor = markAt(p.x, p.y) ? 'pointer' : 'crosshair';
+  drawChart();
+});
+cv.addEventListener('mouseleave', () => { S.hoverV = null; drawChart(); });
+cv.addEventListener('click', e => {
+  const p = chartPos(e), m = markAt(p.x, p.y);
+  if (m) selectPoint(m.key); else gotoV(p.v);
+});
+new ResizeObserver(drawChart).observe(cv);
+
+/* ============================================================
+ * Events
+ * ============================================================ */
+function bindConc(rangeId, numId, key) {
+  const r = $(rangeId), n = $(numId);
+  r.value = n.value = S[key];
+  const set = v => {
+    if (!(v > 0)) return;
+    S[key] = v; r.value = Math.min(1, v); n.value = v;
+    rebuild(true);
+  };
+  r.addEventListener('input', () => set(+r.value));
+  n.addEventListener('change', () => set(Math.max(0.001, Math.min(2, +n.value))));
+}
+bindConc('cAr', 'cA', 'Ca'); bindConc('cBr', 'cB', 'Cb');
+$('acid').addEventListener('change', e => { S.acid = e.target.value; rebuild(true); });
+$('base').addEventListener('change', e => { S.base = e.target.value; rebuild(true); });
+
+$('vol').addEventListener('input', e => { S.running = false; $('run').textContent = '▶ Run'; setVolume(+e.target.value, false); refresh(); });
+$('run').addEventListener('click', () => {
+  S.running = !S.running;
+  if (S.running && S.cur >= vmax() - 1e-9) { S.running = false; return; }
+  if (S.running) S.target = Math.max(S.target, S.cur);
+  $('run').textContent = S.running ? '❚❚ Pause' : '▶ Run';
+});
+$('reset').addEventListener('click', () => { S.running = false; $('run').textContent = '▶ Run'; drops.length = 0; setVolume(0, false); refresh(); });
+document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+  S.running = false; $('run').textContent = '▶ Run';
+  setVolume(S.target + +b.dataset.add, true);
+}));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => gotoV(veq() * +b.dataset.goto)));
+
+rebuild(true);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
