@@ -11,7 +11,7 @@
   const state = {
     source: 'H', // one of GAS_ORDER, or 'WHITE'
     powered: false, // starts OFF: the user follows the phenomenon from the switch
-    step: 'setup', // 'setup' | 'result'
+    resultShown: false, // true once the power-on sequence has reached the screen
     emVisible: false,
     selectedLine: null, // Balmer line object while the transition panel is open
     viewMode: 'levels', // 'levels' | 'atom'
@@ -107,11 +107,8 @@
   const SEQ_FAN_START = SEQ_BEAM_START + SEQ_BEAM_MS;
   const SEQ_TOTAL_MS = SEQ_FAN_START + SEQ_FAN_MS;
 
-  /* Timing for the card2 -> card3 transition. */
-  const TRANSITION_FADE_MS = 380;
-  const TRANSITION_MOVE_MS = 520;
-  const TRANSITION_SWAP_DELAY_MS = TRANSITION_FADE_MS + 130;
-  const TRANSITION_HEIGHT_MS = 650;
+  /* The result card fills in just after the fan reaches the screen. */
+  const SEQ_RESULT_DELAY_MS = SEQ_TOTAL_MS + 120;
   const RESULT_VIEWBOX_H = 110;
   const SETUP_VIEWBOX_H = 260;
 
@@ -225,7 +222,9 @@
       const nm = el.lines.map((ln) => Math.round(ln.wavelength));
       text.textContent = nm.slice(0, 2).join(' \u00B7 ') + '\n' + nm.slice(2).join(' \u00B7 ') + ' nm';
 
-      container.appendChild(buildSourceTile(code, el.symbol, el.name, [strip, text], 'sig-card--teal'));
+      const tile = buildSourceTile(code, el.symbol, el.name, [strip, text], 'sig-card--teal');
+      tile.title = el.name + ': ' + nm.join(', ') + ' nm';
+      container.appendChild(tile);
     });
 
     /* white light: continuous, so a rainbow strip instead of lines (gold = highlight accent) */
@@ -244,19 +243,17 @@
     const textW = document.createElement('span');
     textW.className = 'tile-lines';
     textW.textContent = 'Continuous\n' + Chemulator.VISIBLE_MIN_NM + '\u2013' + Chemulator.VISIBLE_MAX_NM + ' nm';
-    container.appendChild(buildSourceTile('WHITE', '\u2600', 'White light', [stripW, textW], 'sig-card--gold source-chip-white'));
+    const tileW = buildSourceTile('WHITE', '\u2600', 'White light', [stripW, textW], 'sig-card--gold source-chip-white');
+    tileW.title = 'White light: continuous, ' + Chemulator.VISIBLE_MIN_NM + '-' + Chemulator.VISIBLE_MAX_NM + ' nm';
+    container.appendChild(tileW);
   }
 
   function selectSource(code) {
     if (code === state.source) return;
     state.source = code;
     closeTransitionPanel();
-    if (state.step === 'result') {
-      runReverseTransition();
-    } else {
-      render();
-    }
-    updateNavButtons();
+    /* a new source restarts the sequence (when on); render() handles a sequence in flight */
+    render({ playSequence: state.powered });
   }
 
   function updatePickerHighlight() {
@@ -295,7 +292,7 @@
     const svg = document.getElementById('apparatus-svg');
     clearChildren(svg);
 
-    const animate = Boolean(playSequence) && state.powered && state.step === 'setup';
+    const animate = Boolean(playSequence) && state.powered;
     const uid = state.source;
     const defs = svgEl('defs');
     svg.appendChild(defs);
@@ -558,7 +555,9 @@
     const svg = document.getElementById('result-svg');
     clearChildren(svg);
 
-    const W = 900;
+    /* 1 viewBox unit = 1 css px, so labels stay a readable size on phones */
+    const wrapW = svg.parentElement ? Math.round(svg.parentElement.clientWidth) : 0;
+    const W = wrapW >= 280 ? wrapW : 900;
     const H = RESULT_VIEWBOX_H;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
@@ -596,19 +595,54 @@
     blur.appendChild(svgEl('feGaussianBlur', { stdDeviation: 6 }));
     defs.appendChild(blur);
 
-    currentLinesWithColor().forEach((ln) => {
-      const x = 40 + (ln.pct / 100) * (W - 80);
+    /* greedy row assignment: labels that would overlap horizontally drop to the next row */
+    const LABEL_W = 84;
+    const LABEL_H = 28;
+    const ROW_GAP = 4;
+    const LABEL_TOP = 4;
+    const lines = currentLinesWithColor()
+      .map((ln) => ({ ln, x: 40 + (ln.pct / 100) * (W - 80) }))
+      .sort((p, q) => p.x - q.x);
+    const rowEnds = [];
+    lines.forEach((item) => {
+      const left = Math.max(2, Math.min(W - LABEL_W - 2, item.x - LABEL_W / 2));
+      let row = rowEnds.findIndex((end) => left >= end + 4);
+      if (row === -1) { row = rowEnds.length; rowEnds.push(0); }
+      rowEnds[row] = left + LABEL_W;
+      item.left = left;
+      item.row = row;
+    });
+    const rows = Math.max(1, rowEnds.length);
+    const labelArea = LABEL_TOP + rows * LABEL_H + (rows - 1) * ROW_GAP + 6;
+    const lineTop = labelArea + 4;
+    const LINE_H = 62;
+    const H2 = lineTop + LINE_H + 8;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H2}`);
+    svg.firstChild.setAttribute('height', H2);
 
+    /* leaders + glows first so labels paint on top */
+    lines.forEach((item) => {
+      const x = item.x;
+      const ln = item.ln;
       svg.appendChild(
-        svgEl('rect', { x: x - 14, y: 34, width: 28, height: H - 44, fill: ln.color, opacity: 0.3, filter: 'url(#resultBlur)' })
+        svgEl('rect', { x: x - 14, y: lineTop - 4, width: 28, height: LINE_H + 8, fill: ln.color, opacity: 0.3, filter: 'url(#resultBlur)' })
       );
-      svg.appendChild(svgEl('rect', { x: x - 3, y: 38, width: 6, height: H - 52, rx: 3, fill: ln.color }));
-
-      const fo = svgEl('foreignObject', { x: x - 60, y: 2, width: 120, height: 30 });
+      svg.appendChild(svgEl('rect', { x: x - 3, y: lineTop, width: 6, height: LINE_H, rx: 3, fill: ln.color }));
+      if (item.row > 0) {
+        const yLabelBottom = LABEL_TOP + item.row * (LABEL_H + ROW_GAP) + LABEL_H;
+        svg.appendChild(
+          svgEl('line', { x1: x, x2: x, y1: yLabelBottom, y2: lineTop, stroke: ln.color, 'stroke-width': 1.5, opacity: 0.75, class: 'label-leader' })
+        );
+      }
+    });
+    lines.forEach((item) => {
+      const ln = item.ln;
+      const fo = svgEl('foreignObject', { x: item.left, y: LABEL_TOP + item.row * (LABEL_H + ROW_GAP), width: LABEL_W, height: LABEL_H });
       const btn = document.createElement('button');
       btn.type = 'button';
       const interactive = isHydrogen();
       btn.className = 'wavelength-btn' + (interactive ? '' : ' wavelength-btn--static');
+      if (interactive && state.selectedLine && Math.abs(state.selectedLine.wavelength - ln.wavelength) < 0.5) btn.classList.add('active');
       btn.textContent = ln.wavelength.toFixed(1) + ' nm';
       if (interactive) {
         const balmerLine = Chemulator.BALMER_SERIES.find((t) => Math.abs(t.wavelength - ln.wavelength) < 0.5);
@@ -629,19 +663,13 @@
     buttonEl.classList.add('active');
 
     const panel = document.getElementById('transition-panel');
-    const layout = document.getElementById('result-layout');
-    const wrap = document.getElementById('apparatus-wrap');
     const firstOpen = panel.hidden;
 
     state.selectedLine = balmerLine;
     panel.hidden = false;
+    document.getElementById('transition-empty').hidden = true;
 
     if (firstOpen) {
-      /* Side-by-side: the line spectrum keeps its full height and moves to the
-       * left column; the transition diagram fills the right column. */
-      layout.classList.add('split');
-      wrap.style.transition = 'none';
-      wrap.style.height = '';
       panel.classList.remove('appear');
       void panel.offsetWidth;
       panel.classList.add('appear');
@@ -659,9 +687,18 @@
       panel.hidden = true;
       panel.classList.remove('appear');
     }
-    const layout = document.getElementById('result-layout');
-    if (layout) layout.classList.remove('split');
+    updateTransitionEmpty();
     document.querySelectorAll('.wavelength-btn.active').forEach((el) => el.classList.remove('active'));
+  }
+
+  /* Empty-state of the Transition diagram card (hydrogen only). */
+  function updateTransitionEmpty() {
+    const empty = document.getElementById('transition-empty');
+    if (!empty) return;
+    empty.hidden = Boolean(state.selectedLine);
+    empty.textContent = isHydrogen()
+      ? 'Select a spectral line to see the electron transition.'
+      : 'Transition diagrams are available for hydrogen only. Choose hydrogen as the light source to explore the electron transitions behind its lines.';
   }
 
   function updateTransitionPanelText() {
@@ -713,16 +750,18 @@
   }
 
   /* ---------------- view A: energy-level diagram ---------------- */
-  const ENERGY_CHART = { x0: 150, x1: 520, top: 34, bottom: 280 };
+  const ENERGY_CHART = { x0: 90, x1: 470, top: 40, bottom: 312 };
 
   let transitionToken = 0;
   let activeTransitionTimeouts = [];
 
+  /* Levels bunch up near the ionisation limit, so a true-to-scale axis would
+   * stack n = 4, 5, 6 on top of each other. Order is kept, spacing is eased. */
+  const LEVEL_POS = { 1: 0, 2: 0.4, 3: 0.58, 4: 0.72, 5: 0.86, 6: 1 };
+
   function energyLevelY(energyEv) {
-    const levels = Chemulator.HYDROGEN_LEVELS;
-    const eMin = levels[0].energyEv;
-    const eMax = levels[levels.length - 1].energyEv;
-    const t = (energyEv - eMin) / (eMax - eMin);
+    const lvl = Chemulator.HYDROGEN_LEVELS.find((l) => Math.abs(l.energyEv - energyEv) < 1e-9);
+    const t = lvl ? LEVEL_POS[lvl.n] : 0;
     return ENERGY_CHART.bottom - t * (ENERGY_CHART.bottom - ENERGY_CHART.top);
   }
 
@@ -733,13 +772,13 @@
 
     const note = svgEl('text', {
       x: (ENERGY_CHART.x0 + ENERGY_CHART.x1) / 2,
-      y: ENERGY_CHART.top - 14,
+      y: ENERGY_CHART.top - 18,
       'text-anchor': 'middle',
-      'font-size': 10.5,
-      'letter-spacing': '0.06em',
+      'font-size': 13,
+      'letter-spacing': '0.05em',
       class: 'svg-note',
     });
-    note.textContent = 'ALL BALMER TRANSITIONS LAND ON n = 2';
+    note.textContent = 'ALL BALMER TRANSITIONS LAND ON n = 2 · SPACING NOT TO SCALE';
     svg.appendChild(note);
 
     Chemulator.HYDROGEN_LEVELS.forEach((lvl) => {
@@ -757,9 +796,9 @@
       );
       const nLabel = svgEl('text', {
         x: ENERGY_CHART.x0 - 14,
-        y: y + 4,
+        y: y + 5,
         'text-anchor': 'end',
-        'font-size': 12,
+        'font-size': 15,
         'font-family': 'var(--font-mono, monospace)',
         class: 'svg-n',
       });
@@ -768,8 +807,8 @@
 
       const evLabel = svgEl('text', {
         x: ENERGY_CHART.x1 + 12,
-        y: y + 4,
-        'font-size': 10.5,
+        y: y + 5,
+        'font-size': 14,
         'font-family': 'var(--font-mono, monospace)',
         class: 'svg-ev',
       });
@@ -858,7 +897,7 @@
   /* ---------------- view B: atomic (Bohr orbit) view ----------------
    * Modelled on the NAAP hydrogen-atom simulator: proton at the centre and the
    * first six orbits with correct relative spacing (r proportional to n^2). */
-  const ATOM_VIEW = { cx: 320, cy: 168, rMax: 140, nMax: 6 };
+  const ATOM_VIEW = { cx: 320, cy: 192, rMax: 140, nMax: 6 };
 
   function atomOrbitRadius(n) {
     return Chemulator.bohrOrbitRadius(n, ATOM_VIEW.rMax, ATOM_VIEW.nMax);
@@ -867,14 +906,17 @@
   function renderAtomDiagram() {
     const svg = document.getElementById('atom-svg');
     clearChildren(svg);
+    /* phones: crop the empty side margins so the atom fills the narrow card */
+    const narrow = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+    svg.setAttribute('viewBox', narrow ? '150 0 340 340' : '0 0 640 340');
     if (!isHydrogen()) return;
 
     const note = svgEl('text', {
       x: ATOM_VIEW.cx,
-      y: 18,
+      y: 20,
       'text-anchor': 'middle',
-      'font-size': 10.5,
-      'letter-spacing': '0.06em',
+      'font-size': 13,
+      'letter-spacing': '0.05em',
       class: 'svg-note',
     });
     note.textContent = 'BOHR MODEL \u00B7 ORBIT RADII TO SCALE (r \u221D n\u00B2)';
@@ -893,9 +935,11 @@
       );
       if (n >= 2) {
         const lbl = svgEl('text', {
-          x: ATOM_VIEW.cx + r + 5,
-          y: ATOM_VIEW.cy + 4,
-          'font-size': 10.5,
+          x: ATOM_VIEW.cx,
+          y: ATOM_VIEW.cy - r - 4,
+          'text-anchor': 'middle',
+          style: 'paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round',
+          'font-size': 14,
           'font-family': 'var(--font-mono, monospace)',
           class: 'svg-ev',
         });
@@ -905,12 +949,12 @@
     }
 
     /* proton */
-    svg.appendChild(svgEl('circle', { cx: ATOM_VIEW.cx, cy: ATOM_VIEW.cy, r: 5, style: 'fill:var(--proton)' }));
+    svg.appendChild(svgEl('circle', { cx: ATOM_VIEW.cx, cy: ATOM_VIEW.cy, r: 7, style: 'fill:var(--proton)' }));
     const plus = svgEl('text', {
       x: ATOM_VIEW.cx,
-      y: ATOM_VIEW.cy + 3.5,
+      y: ATOM_VIEW.cy + 4.5,
       'text-anchor': 'middle',
-      'font-size': 11,
+      'font-size': 13,
       style: 'fill:var(--proton-ink)',
       'font-weight': '600',
     });
@@ -1068,162 +1112,57 @@
     document.getElementById('source-description').textContent = data.description;
   }
 
-  /* ---------------- card2 -> card3 transition: zoom into the screen ---------------- */
-  function zoomIntoScreen(apparatusSvg, durationMs) {
-    /* The screen sits at (837, 130) in the 900x260 viewBox: 93% across, 50% down.
-     * Scaling the whole apparatus about that point reads as the camera zooming
-     * in until the white screen fills the frame and comes into focus. */
-    apparatusSvg.style.transformOrigin = '93% 50%';
-    apparatusSvg.style.transition = 'none';
-    raf(() => {
-      apparatusSvg.style.transition = `transform ${durationMs}ms var(--ease-buttery, ease-in-out)`;
-      apparatusSvg.style.transform = 'scale(9)';
-    });
+  /* ---------------- Line spectrum card: empty-state <-> result ---------------- */
+  function updateSetupHint() {
+    document.getElementById('setup-hint').textContent = state.powered ? '' : 'Flip the power switch on to begin.';
   }
 
-  function runForwardTransition() {
-    const apparatusSvg = document.getElementById('apparatus-svg');
-    const resultSvg = document.getElementById('result-svg');
-    const wrap = document.getElementById('apparatus-wrap');
-    const screenRect = document.getElementById('apparatus-screen');
-    const resultControls = document.getElementById('result-controls');
-    const heading = document.getElementById('stage-heading');
-    const note = document.getElementById('stage-note');
-
+  function hideResult() {
+    state.resultShown = false;
     closeTransitionPanel();
-    setNavDisabled(true);
-
-    /* Everything except the screen fades; the camera zooms toward the screen. */
-    Array.from(apparatusSvg.children).forEach((child) => {
-      if (child === screenRect || child.tagName.toLowerCase() === 'defs') return;
-      fadeOut(child, 0, TRANSITION_FADE_MS);
-    });
-    zoomIntoScreen(apparatusSvg, TRANSITION_MOVE_MS + 260);
-
-    let startHeight = 0;
-    try {
-      startHeight = wrap.getBoundingClientRect().height;
-    } catch (err) {
-      startHeight = 0;
-    }
-    if (startHeight > 0) {
-      wrap.style.transition = 'none';
-      wrap.style.height = startHeight + 'px';
-      void wrap.offsetHeight;
-      const targetHeight = wrap.clientWidth * (RESULT_VIEWBOX_H / 900);
-      trackTimeout(
-        setTimeout(() => {
-          wrap.style.transition = `height ${TRANSITION_HEIGHT_MS}ms var(--ease-buttery, ease-out)`;
-          raf(() => {
-            wrap.style.height = targetHeight + 'px';
-          });
-        }, 40)
-      );
-    }
-
-    trackTimeout(
-      setTimeout(() => {
-        apparatusSvg.style.display = 'none';
-        apparatusSvg.style.transform = '';
-        apparatusSvg.style.transition = 'none';
-        resultSvg.classList.add('visible');
-        renderResultScreen();
-        heading.textContent = '3. The line spectrum';
-        note.textContent = isHydrogen()
-          ? 'The screen, now face-on: each line is one exact colour. Click a wavelength to see the electron transition responsible for that line.'
-          : isWhite()
-            ? 'The screen, now face-on: every visible wavelength arrived, so the rainbow is continuous with no gaps.'
-            : 'The screen, now face-on: each line is one exact colour \u2014 a fingerprint unique to this element.';
-        resultControls.hidden = false;
-
-        state.step = 'result';
-        updateNavButtons();
-      }, TRANSITION_SWAP_DELAY_MS)
-    );
+    document.getElementById('result-svg').classList.remove('visible');
+    document.getElementById('spectrum-body').hidden = true;
+    const empty = document.getElementById('spectrum-empty');
+    empty.hidden = false;
+    empty.textContent = state.powered
+      ? 'Watch the light travel to the screen…'
+      : 'Switch the power on to see the spectrum.';
   }
 
-  function runReverseTransition() {
-    const apparatusSvg = document.getElementById('apparatus-svg');
-    const resultSvg = document.getElementById('result-svg');
-    const wrap = document.getElementById('apparatus-wrap');
-    const resultControls = document.getElementById('result-controls');
-    const emRevealWrap = document.getElementById('em-reveal-wrap');
-    const emToggle = document.getElementById('em-toggle');
-    const heading = document.getElementById('stage-heading');
-    const note = document.getElementById('stage-note');
-
-    clearPendingTimeouts();
-    closeTransitionPanel();
-
-    resultSvg.classList.remove('visible');
-    resultControls.hidden = true;
-    state.emVisible = false;
-    emRevealWrap.classList.remove('phase-visible', 'animate-in');
-    emToggle.textContent = 'Compare to full EM spectrum \u2193';
-    emToggle.classList.remove('active');
-
-    apparatusSvg.style.display = '';
-    apparatusSvg.style.transform = '';
-    apparatusSvg.style.transition = 'none';
-    wrap.style.transition = 'none';
-    wrap.style.height = '';
-
-    heading.textContent = '2. Full setup: tube \u2192 spectrometer \u2192 screen';
-    note.textContent =
-      'Switch the power on and watch the sequence: the tube glows, light reaches the lens and is focused into the spectrometer, then the diffraction grating spreads it onto the screen.';
-
-    state.step = 'setup';
-    render();
-    updateNavButtons();
-  }
-
-  /* ---------------- wizard navigation ---------------- */
-  function setNavDisabled(disabled) {
-    document.getElementById('nav-back').disabled = disabled;
-    document.getElementById('nav-next').disabled = disabled;
-  }
-
-  function updateNavButtons() {
-    const back = document.getElementById('nav-back');
-    const next = document.getElementById('nav-next');
-    const hint = document.getElementById('setup-hint');
-
-    if (state.step === 'setup') {
-      back.disabled = true;
-      next.style.display = '';
-      next.disabled = !state.powered;
-      hint.textContent = state.powered
-        ? 'Click Next to bring the screen up close.'
-        : 'Flip the power switch on above to begin.';
-    } else {
-      back.disabled = false;
-      next.style.display = 'none';
-      hint.textContent = '';
-    }
-  }
-
-  function initNav() {
-    document.getElementById('nav-next').addEventListener('click', () => {
-      if (state.step === 'setup' && state.powered) runForwardTransition();
-    });
-    document.getElementById('nav-back').addEventListener('click', () => {
-      if (state.step === 'result') runReverseTransition();
-    });
+  function showResult() {
+    state.resultShown = true;
+    document.getElementById('spectrum-empty').hidden = true;
+    document.getElementById('spectrum-body').hidden = false;
+    renderResultScreen();
+    document.getElementById('result-svg').classList.add('visible');
+    document.getElementById('stage-note').textContent = isHydrogen()
+      ? 'Each line is one exact colour. Click a wavelength to see the electron transition responsible for that line.'
+      : isWhite()
+        ? 'Every visible wavelength arrived, so the rainbow is continuous with no gaps.'
+        : 'Each line is one exact colour — a fingerprint unique to this element.';
+    if (state.emVisible) renderEmSpectrum();
   }
 
   /* ---------------- render everything ---------------- */
   function render(options) {
     const opts = options || {};
-    const playSequence = Boolean(opts.playSequence) && state.powered && state.step === 'setup';
+    const playSequence = Boolean(opts.playSequence) && state.powered;
 
+    clearPendingTimeouts();
     updatePickerHighlight();
     renderHeadline();
     renderApparatus(playSequence);
+    updateSetupHint();
 
-    if (state.step === 'result') {
-      renderResultScreen();
-      if (state.emVisible) renderEmSpectrum();
+    if (!state.powered) {
+      hideResult();
+    } else if (playSequence) {
+      hideResult();
+      trackTimeout(setTimeout(showResult, SEQ_RESULT_DELAY_MS));
+    } else {
+      showResult();
     }
+    updateTransitionEmpty();
   }
 
   function initPowerToggle() {
@@ -1236,7 +1175,6 @@
       state.powered = toggle.checked;
       updatePowerLabel(label);
       render({ playSequence: turningOn });
-      updateNavButtons();
     });
   }
 
@@ -1251,6 +1189,19 @@
 
   let initialized = false;
   function init() {
+    let resizeTimer = null;
+    let lastResultW = 0;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const wrap = document.getElementById('result-wrap');
+        if (!state.powered || !state.resultShown || !wrap || Math.abs(wrap.clientWidth - lastResultW) < 2) return;
+        lastResultW = wrap.clientWidth;
+        const hadFocus = document.activeElement && document.activeElement.classList.contains('wavelength-btn');
+        renderResultScreen();
+        if (hadFocus) { const a = document.querySelector('.wavelength-btn.active'); if (a) a.focus(); }
+      }, 120);
+    });
     if (initialized) return;
     initialized = true;
     initThemeToggle();
@@ -1258,9 +1209,7 @@
     initPowerToggle();
     initEmToggle();
     initModeToggle();
-    initNav();
     render();
-    updateNavButtons();
   }
 
   if (document.readyState === 'loading') {
