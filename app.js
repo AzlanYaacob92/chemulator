@@ -129,34 +129,118 @@
     pendingTimeouts.length = 0;
   }
 
+  /* ---------------- theme toggle (shared Chemculator behaviour) ---------------- */
+  /* Same storage key and values as the hub, so the choice carries across pages.
+   * The flash-free inline script in <head> applies a saved 'dark' before first paint. */
+  const THEME_KEY = 'theme';
+
+  function currentIsDark() {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+
+  function updateThemeToggleIcon(btn) {
+    btn.textContent = currentIsDark() ? '\u2600\uFE0F' : '\uD83C\uDF19';
+  }
+
+  function initThemeToggle() {
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    updateThemeToggleIcon(btn);
+    btn.addEventListener('click', () => {
+      if (currentIsDark()) {
+        document.documentElement.removeAttribute('data-theme');
+        try {
+          localStorage.setItem(THEME_KEY, 'light');
+        } catch (err) {
+          /* storage unavailable: the choice just doesn't persist */
+        }
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        try {
+          localStorage.setItem(THEME_KEY, 'dark');
+        } catch (err) {
+          /* storage unavailable: the choice just doesn't persist */
+        }
+      }
+      updateThemeToggleIcon(btn);
+    });
+  }
+
   /* ---------------- source picker (Card 1, persistent) ---------------- */
+  /* Each source is a signature-card tile: the front face shows the element, the back
+   * face (hover / keyboard focus; always visible on touch) shows its line fingerprint.
+   * Tiles keep the .source-chip class and data-source attribute that the tests use. */
+  function buildSourceTile(code, symbol, name, backNodes, extraClass) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'source-chip sig-card ' + extraClass;
+    btn.dataset.source = code;
+    btn.setAttribute('aria-pressed', 'false');
+
+    const front = document.createElement('span');
+    front.className = 'sig-front';
+    const sym = document.createElement('span');
+    sym.className = 'tile-symbol';
+    sym.textContent = symbol;
+    const nm = document.createElement('span');
+    nm.className = 'tile-name';
+    nm.textContent = name;
+    front.appendChild(sym);
+    front.appendChild(nm);
+
+    const back = document.createElement('span');
+    back.className = 'sig-back';
+    backNodes.forEach((node) => back.appendChild(node));
+
+    btn.appendChild(front);
+    btn.appendChild(back);
+    btn.addEventListener('click', () => selectSource(code));
+    return btn;
+  }
+
   function buildSourcePicker() {
     const container = document.getElementById('source-picker');
     clearChildren(container);
 
     Chemulator.GAS_ORDER.forEach((code) => {
       const el = Chemulator.GAS_ELEMENTS[code];
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'source-chip';
-      btn.dataset.source = code;
-      btn.textContent = el.symbol + ' \u00B7 ' + el.name;
-      btn.addEventListener('click', () => selectSource(code));
-      container.appendChild(btn);
+
+      /* mini line spectrum on a dark strip (physical colours), then the wavelengths */
+      const strip = document.createElement('span');
+      strip.className = 'tile-spectrum';
+      strip.setAttribute('aria-hidden', 'true');
+      el.lines.forEach((ln) => {
+        const mark = document.createElement('i');
+        mark.style.left = Chemulator.visiblePercent(ln.wavelength) + '%';
+        mark.style.background = Chemulator.wavelengthToRGB(ln.wavelength);
+        strip.appendChild(mark);
+      });
+      const text = document.createElement('span');
+      text.className = 'tile-lines';
+      /* two short rows so the list never wraps mid-way */
+      const nm = el.lines.map((ln) => Math.round(ln.wavelength));
+      text.textContent = nm.slice(0, 2).join(' \u00B7 ') + '\n' + nm.slice(2).join(' \u00B7 ') + ' nm';
+
+      container.appendChild(buildSourceTile(code, el.symbol, el.name, [strip, text], 'sig-card--teal'));
     });
 
-    const divider = document.createElement('span');
-    divider.className = 'source-chip-divider';
-    divider.textContent = 'vs.';
-    container.appendChild(divider);
-
-    const whiteBtn = document.createElement('button');
-    whiteBtn.type = 'button';
-    whiteBtn.className = 'source-chip source-chip-white';
-    whiteBtn.dataset.source = 'WHITE';
-    whiteBtn.textContent = '\u2600 White light';
-    whiteBtn.addEventListener('click', () => selectSource('WHITE'));
-    container.appendChild(whiteBtn);
+    /* white light: continuous, so a rainbow strip instead of lines (gold = highlight accent) */
+    const stripW = document.createElement('span');
+    stripW.className = 'tile-spectrum';
+    stripW.setAttribute('aria-hidden', 'true');
+    const rainbow = document.createElement('span');
+    rainbow.className = 'tile-spectrum-rainbow';
+    const stops = [];
+    for (let i = 0; i <= 8; i += 1) {
+      const wl = Chemulator.VISIBLE_MIN_NM + ((Chemulator.VISIBLE_MAX_NM - Chemulator.VISIBLE_MIN_NM) * i) / 8;
+      stops.push(Chemulator.wavelengthToRGB(wl));
+    }
+    rainbow.style.background = 'linear-gradient(90deg, ' + stops.join(', ') + ')';
+    stripW.appendChild(rainbow);
+    const textW = document.createElement('span');
+    textW.className = 'tile-lines';
+    textW.textContent = 'Continuous\n' + Chemulator.VISIBLE_MIN_NM + '\u2013' + Chemulator.VISIBLE_MAX_NM + ' nm';
+    container.appendChild(buildSourceTile('WHITE', '\u2600', 'White light', [stripW, textW], 'sig-card--gold source-chip-white'));
   }
 
   function selectSource(code) {
@@ -173,7 +257,9 @@
 
   function updatePickerHighlight() {
     document.querySelectorAll('.source-chip').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.source === state.source);
+      const isActive = btn.dataset.source === state.source;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
   }
 
@@ -378,7 +464,7 @@
       'text-anchor': 'middle',
       fill: '#bdf0f6',
       'font-size': 12,
-      'font-family': 'var(--font-mono, monospace)',
+      'font-family': 'var(--mono, monospace)',
       'letter-spacing': '0.08em',
     });
     specLabel.textContent = 'SPECTROMETER';
@@ -458,7 +544,7 @@
         x: W / 2,
         y: H - 14,
         'text-anchor': 'middle',
-        fill: '#5e7480',
+        fill: '#8a9aa8',
         'font-size': 10,
         'letter-spacing': '0.12em',
       });
@@ -483,7 +569,7 @@
         x: W / 2,
         y: H / 2 + 4,
         'text-anchor': 'middle',
-        fill: '#5e7480',
+        fill: '#8a9aa8',
         'font-size': 12,
         'letter-spacing': '0.1em',
       });
@@ -650,8 +736,8 @@
       y: ENERGY_CHART.top - 14,
       'text-anchor': 'middle',
       'font-size': 10.5,
-      fill: '#5e7480',
       'letter-spacing': '0.06em',
+      class: 'svg-note',
     });
     note.textContent = 'ALL BALMER TRANSITIONS LAND ON n = 2';
     svg.appendChild(note);
@@ -665,8 +751,8 @@
           y1: y,
           x2: ENERGY_CHART.x1,
           y2: y,
-          stroke: isLanding ? '#12788a' : 'rgba(12,63,82,0.32)',
           'stroke-width': isLanding ? 3 : 1.5,
+          class: isLanding ? 'lvl-line lvl-line--landing' : 'lvl-line',
         })
       );
       const nLabel = svgEl('text', {
@@ -674,8 +760,8 @@
         y: y + 4,
         'text-anchor': 'end',
         'font-size': 12,
-        'font-family': 'var(--font-mono, monospace)',
-        fill: '#2d3d44',
+        'font-family': 'var(--mono, monospace)',
+        class: 'svg-n',
       });
       nLabel.textContent = 'n=' + lvl.n;
       svg.appendChild(nLabel);
@@ -684,8 +770,8 @@
         x: ENERGY_CHART.x1 + 12,
         y: y + 4,
         'font-size': 10.5,
-        'font-family': 'var(--font-mono, monospace)',
-        fill: '#5e7480',
+        'font-family': 'var(--mono, monospace)',
+        class: 'svg-ev',
       });
       evLabel.textContent = lvl.energyEv.toFixed(2) + ' eV';
       svg.appendChild(evLabel);
@@ -759,7 +845,7 @@
       electron.style.cy = yInitial + 'px';
       const t2 = setTimeout(() => {
         if (token !== transitionToken) return;
-        electron.style.transition = `cy ${ANIM_ELECTRON_FALL_MS}ms var(--easing, ease-out)`;
+        electron.style.transition = `cy ${ANIM_ELECTRON_FALL_MS}ms var(--ease-buttery, ease-out)`;
         raf(() => {
           if (token !== transitionToken) return;
           electron.style.cy = yFinal + 'px';
@@ -789,8 +875,8 @@
       y: 18,
       'text-anchor': 'middle',
       'font-size': 10.5,
-      fill: '#5e7480',
       'letter-spacing': '0.06em',
+      class: 'svg-note',
     });
     note.textContent = 'BOHR MODEL \u00B7 ORBIT RADII TO SCALE (r \u221D n\u00B2)';
     svg.appendChild(note);
@@ -802,10 +888,8 @@
           cx: ATOM_VIEW.cx,
           cy: ATOM_VIEW.cy,
           r,
-          fill: 'none',
-          stroke: n === 2 ? '#12788a' : 'rgba(12,63,82,0.28)',
           'stroke-width': n === 2 ? 2.5 : 1.2,
-          class: 'atom-orbit',
+          class: n === 2 ? 'atom-orbit atom-orbit--landing' : 'atom-orbit',
         })
       );
       if (n >= 2) {
@@ -813,8 +897,8 @@
           x: ATOM_VIEW.cx + r + 5,
           y: ATOM_VIEW.cy + 4,
           'font-size': 10.5,
-          'font-family': 'var(--font-mono, monospace)',
-          fill: '#5e7480',
+          'font-family': 'var(--mono, monospace)',
+          class: 'svg-ev',
         });
         lbl.textContent = 'n=' + n;
         svg.appendChild(lbl);
@@ -879,7 +963,7 @@
       electron.style.cy = yInitial + 'px';
       const t2 = setTimeout(() => {
         if (token !== transitionToken) return;
-        electron.style.transition = `cx ${ANIM_ELECTRON_FALL_MS}ms var(--easing, ease-out), cy ${ANIM_ELECTRON_FALL_MS}ms var(--easing, ease-out)`;
+        electron.style.transition = `cx ${ANIM_ELECTRON_FALL_MS}ms var(--ease-buttery, ease-out), cy ${ANIM_ELECTRON_FALL_MS}ms var(--ease-buttery, ease-out)`;
         raf(() => {
           if (token !== transitionToken) return;
           electron.style.cx = xFinal + 'px';
@@ -912,6 +996,8 @@
       const label = document.createElement('span');
       label.className = 'em-band-label';
       label.textContent = band.name;
+      /* a label can't fit a sliver (the visible band is ~1% of the log axis); the axis row names it */
+      if (endPct - startPct < 6) label.style.display = 'none';
       seg.appendChild(label);
       bar.appendChild(seg);
     });
@@ -977,6 +1063,8 @@
   /* ---------------- headline / description text ---------------- */
   function renderHeadline() {
     const data = currentSourceData();
+    const headline = document.querySelector('.headline');
+    if (headline) headline.dataset.source = state.source;
     document.getElementById('source-symbol').textContent = data.symbol;
     document.getElementById('source-name').textContent = data.name;
     document.getElementById('source-description').textContent = data.description;
@@ -990,7 +1078,7 @@
     apparatusSvg.style.transformOrigin = '93% 50%';
     apparatusSvg.style.transition = 'none';
     raf(() => {
-      apparatusSvg.style.transition = `transform ${durationMs}ms var(--easing, ease-in-out)`;
+      apparatusSvg.style.transition = `transform ${durationMs}ms var(--ease-buttery, ease-in-out)`;
       apparatusSvg.style.transform = 'scale(9)';
     });
   }
@@ -1027,7 +1115,7 @@
       const targetHeight = wrap.clientWidth * (RESULT_VIEWBOX_H / 900);
       trackTimeout(
         setTimeout(() => {
-          wrap.style.transition = `height ${TRANSITION_HEIGHT_MS}ms var(--easing, ease-out)`;
+          wrap.style.transition = `height ${TRANSITION_HEIGHT_MS}ms var(--ease-buttery, ease-out)`;
           raf(() => {
             wrap.style.height = targetHeight + 'px';
           });
@@ -1167,6 +1255,7 @@
   function init() {
     if (initialized) return;
     initialized = true;
+    initThemeToggle();
     buildSourcePicker();
     initPowerToggle();
     initEmToggle();
