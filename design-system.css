@@ -142,12 +142,13 @@
   --font-mono: "Atkinson Hyperlegible Mono", Consolas, "Cascadia Mono", "SFMono-Regular", ui-monospace,
                Menlo, "JetBrains Mono", monospace;
 
-  /* weights — one step apart, capped at 600: nothing needs 700 to read
-     as a heading once the letterform itself is doing the work */
+  /* weights — one step apart. Body, labels and controls stop at 600;
+     only headings go to 700 */
   --w-normal: 400;
   --w-medium: 500;
   --w-semi:   600;
   --w-bold:   600;
+  --w-display: 700;   /* headings only: Nunito is a light face and needs the extra step to carry a title */
 
   /* line heights: a little looser throughout than a technical system
      would use — tight leading is part of what reads "hard" */
@@ -172,9 +173,9 @@
   --fs-micro:   0.6875rem;  /* units and footnotes only, never sentences */
 
   /* composed shorthands: font: var(--t-h2) */
-  --t-display: var(--w-semi) var(--fs-display)/var(--lh-display) var(--font-display);
-  --t-h1:      var(--w-semi) var(--fs-h1)/var(--lh-heading) var(--font-display);
-  --t-h2:      var(--w-semi) var(--fs-h2)/var(--lh-heading) var(--font-display);
+  --t-display: var(--w-display) var(--fs-display)/var(--lh-display) var(--font-display);
+  --t-h1:      var(--w-display) var(--fs-h1)/var(--lh-heading) var(--font-display);
+  --t-h2:      var(--w-display) var(--fs-h2)/var(--lh-heading) var(--font-display);
   --t-h3:      var(--w-semi) var(--fs-h3)/var(--lh-tight) var(--font-body);
   --t-body:    var(--w-normal) var(--fs-body)/var(--lh-body) var(--font-body);
   --t-body-strong: var(--w-semi) var(--fs-body)/var(--lh-body) var(--font-body);
