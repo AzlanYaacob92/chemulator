@@ -971,7 +971,16 @@ html:has(.tit) { height: 100%; }
 .tit .sim .tk { fill: var(--glass); stroke: none; }
 .tit .sim .liq { fill: var(--water); }
 .tit .sim .clamp { fill: var(--clamp); }
-.tit .sim .handle { fill: var(--muted); }
+.tit .sim .handle {
+  fill: var(--muted);
+  transform-box: fill-box; transform-origin: 0 50%;
+  transition: transform var(--dur) var(--ease);
+}
+.tit .sim .handle.open { transform: rotate(90deg); }   /* tap turned in line with the flow */
+.tit .sim .meniscus { fill: var(--card); }             /* cuts the concave top out of the burette liquid */
+.tit .sim .surface { fill: var(--card); fill-opacity: .3; stroke: var(--glass); stroke-width: .8; }
+.tit .sim .ripple { fill: none; stroke: var(--glass); stroke-width: 1; }
+.tit .sim #flaskLiquid { transition: fill var(--dur) var(--ease-move); }
 .tit .sim .drop { fill: var(--water-drop); stroke: var(--glass); stroke-width: .6; }
 .tit .sim .lbl-ink { fill: var(--ink); }
 .tit .sim .lbl-muted { fill: var(--muted); }

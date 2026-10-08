@@ -56,15 +56,19 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
           <clipPath id="flaskClip"><path d="M160 490 L160 535 L98 600 Q92 612 106 612 L254 612 Q268 612 262 600 L200 535 L200 490 Z"/></clipPath>
         </defs>
         <rect id="buretteLiquid" class="liq" x="167" y="40" width="26" height="340" clip-path="url(#tubeClip)"/>
+        <path id="meniscus" class="meniscus" clip-path="url(#tubeClip)"/>
+        <path id="meniscusLine" class="glass" fill="none" stroke-width="1"/>
         <g id="ticks" class="glass" stroke-width="1"></g>
         <rect class="glass" x="167" y="40" width="26" height="340" rx="2" fill="none" stroke-width="2"/>
         <path class="glass liq" d="M167 380 L174 420 L186 420 L193 380" stroke-width="2"/>
         <rect class="glass clamp" x="150" y="386" width="60" height="9" rx="3" stroke-width="1"/>
-        <rect class="glass handle" x="205" y="383" width="22" height="15" rx="3" stroke-width="1"/>
+        <rect id="tap" class="glass handle" x="205" y="383" width="22" height="15" rx="3" stroke-width="1"/>
         <text id="buretteLabel" class="lbl-ink" x="180" y="22" text-anchor="middle" font-size="16" font-weight="600"></text>
         <g id="drops"></g>
         <g>
           <rect id="flaskLiquid" x="80" y="570" width="200" height="60" clip-path="url(#flaskClip)"/>
+          <g id="ripples" clip-path="url(#flaskClip)"></g>
+          <ellipse id="flaskSurface" class="surface" cx="180" cy="570" rx="40" ry="2.6"/>
           <path class="glass" d="M160 490 L160 535 L98 600 Q92 612 106 612 L254 612 Q268 612 262 600 L200 535 L200 490" fill="none" stroke-width="2.5" stroke-linejoin="round"/>
           <path class="glass" d="M153 490 L207 490" stroke-width="3" stroke-linecap="round"/>
         </g>
@@ -73,7 +77,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
     </section>
 
     <section class="card chartcard">
-      <div class="plot"><canvas id="chart"></canvas></div>
+      <div class="plot"><canvas id="chart" role="img" aria-label="Titration curve: pH against volume of base added"></canvas></div>
       <div class="strip">
         <input class="vol-slider" id="vol" type="range" min="0" max="50" step="0.01" value="0" aria-label="Volume of base added" />
         <span class="ro">Base added <strong id="roAdd">0.00 mL</strong></span>
@@ -98,6 +102,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
   <section class="card calcbox" id="calc"></section>
 </div>
 
+<script src="motion.js"></script>
 <script>
 /* ============================================================
  * Data
@@ -137,7 +142,7 @@ const INDICATORS = {
  * ============================================================ */
 const S = {
   acid: 'HCl', base: 'NaOH', Ca: 0.100, Cb: 0.100,
-  cur: 0, target: 0, running: false,
+  cur: 0, target: 0, running: false, rate: 8,
   curve: [], hoverV: null,
   showCalc: false, calcKey: null,
 };
@@ -406,6 +411,9 @@ function rebuild(resetVolume = true) {
   for (let i = 0; i <= N; i++) { const v = xmax * i / N; S.curve.push([v, exactPH(v)]); }
   for (const m of marks()) S.curve.push([m.v, exactPH(m.v)]);
   S.curve.sort((a, b) => a[0] - b[0]);
+  S.marks = marks().map(m => ({ ...m, pH: exactPH(m.v) }));
+  layerStale = true;
+  if (resetVolume) { drops.length = 0; ripples.length = 0; }
 
   const Vm = vmax(), vol = $('vol');
   vol.max = Vm; vol.step = Math.max(0.01, +(Vm / 2000).toFixed(3));
@@ -429,13 +437,17 @@ function rebuild(resetVolume = true) {
     w.textContent = `A 50 mL burette cannot reach 3⁄2 V_eq (${fx(1.5 * Ve, 4)} mL). Raise the base concentration or lower the acid concentration.`;
   } else w.style.display = 'none';
 
+  cv.setAttribute('aria-label', `Titration curve: pH against volume of base added. ` +
+    `Equivalence point at ${fx(Ve, 4)} mL, pH ${f2(S.marks[2].pH)}. Use the volume slider or the buttons below the chart to explore it.`);
   renderCalc();
   refresh();
+  kick();
 }
 
 /* ============================================================
  * Calculation panel
  * ============================================================ */
+let shownCalc = '';
 function renderCalc() {
   const box = $('calc');
   document.querySelectorAll('.chip').forEach(c => {
@@ -445,6 +457,11 @@ function renderCalc() {
   const btn = $('showCalc');
   btn.setAttribute('aria-pressed', S.showCalc);
   btn.textContent = S.showCalc ? 'Hide calculation ▴' : 'Show calculation ▾';
+  /* the ring around the chosen point lives in the cached chart layer */
+  layerStale = true; requestPaint();
+  const showing = S.showCalc && S.calcKey ? S.calcKey : '';
+  const changed = showing !== shownCalc;
+  shownCalc = showing;
   if (!S.showCalc || !S.calcKey) {
     box.innerHTML = `<p class="placeholder">Press <b>Show calculation</b>, or click the <b>Initial</b>, <b>½ equivalence</b> or <b>Equivalence</b> point on the curve, to see how the pH is worked out.</p>`;
     return;
@@ -455,6 +472,8 @@ function renderCalc() {
     `<span>V(base) = ${fx(m.v, 4)} mL${m.v > BURETTE_MAX ? ' (beyond a 50 mL burette)' : ''}</span>` +
     `<span class="res">pH = ${f2(w.pH)} <small>(exact full-equilibrium value: ${f2(ex)})</small></span></div>` +
     `<div class="steps">${w.html}</div>`;
+  /* a newly chosen point arrives; the same point recalculated just updates in place */
+  if (changed) Motion.stagger(box.children, { y: 6, duration: 'base' });
 }
 function selectPoint(key) {
   S.calcKey = key; S.showCalc = true;
@@ -475,78 +494,166 @@ document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () =
 /* ============================================================
  * Rendering the simulator
  * ============================================================ */
+const EL = {
+  liquid: $('buretteLiquid'), meniscus: $('meniscus'), meniscusLine: $('meniscusLine'), tap: $('tap'),
+  flask: $('flaskLiquid'), surface: $('flaskSurface'),
+  roAdd: $('roAdd'), roPH: $('roPH'), vol: $('vol'), run: $('run'),
+  gotos: [...document.querySelectorAll('[data-goto]')], adds: [...document.querySelectorAll('[data-add]')],
+};
+/* half-width of the inside of the flask at height y (neck above 535, cone below) */
+const flaskHalfWidth = y => (y <= 535 ? 20 : 20 + (y - 535) * 62 / 65);
+const reducedMotion = () => Motion.reduced();
+
 function refresh() {
-  const v = S.cur, pH = exactPH(v);
-  const y = 40 + v * 6.8;
-  $('buretteLiquid').setAttribute('y', y);
-  $('buretteLiquid').setAttribute('height', 380 - y);
-  $('roAdd').textContent = v.toFixed(2) + ' mL';
-  $('roPH').textContent = pH.toFixed(2);
-  if (document.activeElement !== $('vol')) $('vol').value = v;
+  const v = S.cur, pH = S.pH = exactPH(v);
+  /* burette: the reading is the bottom of the meniscus, so the liquid climbs 2.5 units up the glass */
+  const y = 40 + v * 6.8, edge = y - 2.5;
+  EL.liquid.setAttribute('y', edge);
+  EL.liquid.setAttribute('height', 380 - edge);
+  EL.meniscus.setAttribute('d', `M166 ${edge - 1} L194 ${edge - 1} L194 ${edge} Q180 ${y + 2.5} 166 ${edge} Z`);
+  EL.meniscusLine.setAttribute('d', `M167 ${edge} Q180 ${y + 2.5} 193 ${edge}`);
+  EL.roAdd.textContent = v.toFixed(2) + ' mL';
+  EL.roPH.textContent = pH.toFixed(2);
+  if (document.activeElement !== EL.vol) EL.vol.value = v;
 
   const frac = (VA + v) / (VA + vmax());
   S.surface = 585 - 45 * frac;
-  const fl = $('flaskLiquid');
-  fl.setAttribute('y', S.surface); fl.setAttribute('height', 640 - S.surface);
-  fl.setAttribute('fill', indColour(pH));
+  EL.flask.setAttribute('y', S.surface); EL.flask.setAttribute('height', 640 - S.surface);
+  EL.flask.setAttribute('fill', indColour(pH));
+  EL.surface.setAttribute('cy', S.surface);
+  EL.surface.setAttribute('rx', flaskHalfWidth(S.surface) - 1.5);
 
   const Vm = vmax(), Ve = veq();
-  document.querySelectorAll('[data-goto]').forEach(b => b.disabled = Ve * +b.dataset.goto > Vm + 1e-9);
-  document.querySelectorAll('[data-add]').forEach(b => b.disabled = v >= Vm - 1e-9);
-  $('run').disabled = v >= Vm - 1e-9 && !S.running;
+  EL.gotos.forEach(b => b.disabled = Ve * +b.dataset.goto > Vm + 1e-9);
+  EL.adds.forEach(b => b.disabled = v >= Vm - 1e-9);
+  EL.run.disabled = v >= Vm - 1e-9 && !S.running;
   drawChart();
 }
 
-function setVolume(v, animate) {
+function setRunning(on) {
+  S.running = on;
+  EL.run.textContent = on ? '❚❚ Pause' : '▶ Run';
+  if (on) { S.rate = POUR_RATE; kick(); }
+}
+/* animate = pour towards v at `rate` mL/s; otherwise jump there (dragging the slider) */
+function setVolume(v, animate, rate) {
   v = Math.max(0, Math.min(vmax(), v));
   S.target = v;
-  if (!animate) S.cur = v;
+  S.rate = rate || POUR_RATE;
+  if (!animate || reducedMotion()) { S.cur = v; refresh(); }
+  kick();
 }
-function gotoV(v) { S.running = false; $('run').textContent = '▶ Run'; setVolume(v, true); }
+function gotoV(v) { setRunning(false); setVolume(v, true); }
 
 /* ============================================================
- * Drops + animation loop
+ * Drops, ripples + animation loop
+ * The loop runs only while something is moving: it is started by
+ * kick() and stops itself once the liquid, drops and ripples settle.
  * ============================================================ */
-const drops = [];
-let spawnAcc = 0;
-function renderDrops() {
-  $('drops').innerHTML = drops.map(d => `<ellipse class="drop" cx="180" cy="${d.y.toFixed(1)}" rx="3.2" ry="4.4"/>`).join('');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function pool(parent, n, make) {
+  return Array.from({ length: n }, () => { const el = make(); el.style.display = 'none'; parent.appendChild(el); return el; });
 }
-const JUMP_RATE = 8;   // mL/s while following the target
-let last = performance.now();
+function svgEl(tag, cls, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  el.setAttribute('class', cls);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+/* fixed pools: nothing is created or destroyed while the simulation runs */
+const dropEls = pool($('drops'), 20, () => svgEl('ellipse', 'drop', { cx: 180, rx: 3.2, ry: 4.4 }));
+const flashEls = pool($('ripples'), 16, () => svgEl('ellipse', 'flash', { cx: 180 }));
+const ringEls = pool($('ripples'), 16, () => svgEl('ellipse', 'ripple', { cx: 180 }));
+const drops = [], ripples = [];
+let spawnAcc = 0;
+
+const POUR_RATE = 8;        // mL/s while following a target
+const RIPPLE_S = 0.5;       // how long a landed drop disturbs the surface
+function renderDrops() {
+  dropEls.forEach((el, i) => {
+    const d = drops[i];
+    el.style.display = d ? '' : 'none';
+    if (d) el.setAttribute('cy', d.y.toFixed(1));
+  });
+}
+/* Where a drop lands the indicator briefly shows the burette solution's colour
+   before it mixes in — the flash you swirl away as the end-point approaches. */
+function renderRipples() {
+  const added = indColour(14);
+  ringEls.forEach((ring, i) => {
+    const r = ripples[i], flash = flashEls[i];
+    ring.style.display = flash.style.display = r ? '' : 'none';
+    if (!r) return;
+    const p = r.age / RIPPLE_S, rx = Math.min(4 + 18 * p, flaskHalfWidth(r.y) - 2);
+    ring.setAttribute('cy', r.y); ring.setAttribute('rx', rx); ring.setAttribute('ry', rx * 0.2);
+    ring.setAttribute('opacity', (1 - p).toFixed(2));
+    flash.setAttribute('cy', r.y + 3 + 3 * p); flash.setAttribute('rx', 6 + 9 * p); flash.setAttribute('ry', 3 + 3 * p);
+    flash.setAttribute('fill', added); flash.setAttribute('opacity', (0.9 * (1 - p)).toFixed(2));
+  });
+}
+
+let rafId = 0, last = 0;
+function kick() {
+  if (rafId) return;
+  last = performance.now();
+  rafId = requestAnimationFrame(frame);
+}
 function frame(now) {
+  rafId = 0;
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const calm = reducedMotion();
   if (S.running) {
     const near = Math.abs(S.target - veq()) < 1.0;          // slow down near the end-point
     S.target = Math.min(vmax(), S.target + (near ? 0.6 : 3) * dt);
-    if (S.target >= vmax() - 1e-9) { S.running = false; $('run').textContent = '▶ Run'; }
+    if (S.target >= vmax() - 1e-9) setRunning(false);
   }
   if (S.cur !== S.target) {
     const d = S.target - S.cur;
-    const stp = Math.sign(d) * Math.min(Math.abs(d), JUMP_RATE * dt);
+    const stp = Math.sign(d) * Math.min(Math.abs(d), S.rate * dt);
     S.cur += stp;
-    if (stp > 0) { spawnAcc += stp; if (spawnAcc > 0.3) { spawnAcc = 0; drops.push({ y: 424, vy: 20 }); } }
+    if (stp > 0 && !calm) {
+      spawnAcc += stp;
+      if (spawnAcc > 0.3 && drops.length < dropEls.length) { spawnAcc = 0; drops.push({ y: 424, vy: 20 }); }
+    }
     refresh();
   }
   if (drops.length) {
     for (const d of drops) { d.vy += 900 * dt; d.y += d.vy * dt; }
-    while (drops.length && drops[0].y >= (S.surface || 560)) drops.shift();
-    renderDrops();
-  } else if ($('drops').firstChild) $('drops').innerHTML = '';
-  requestAnimationFrame(frame);
+    while (drops.length && drops[0].y >= S.surface) {
+      drops.shift();
+      if (ripples.length < ringEls.length) ripples.push({ age: 0, y: S.surface });
+    }
+  }
+  if (ripples.length) {
+    for (const r of ripples) r.age += dt;
+    while (ripples.length && ripples[0].age >= RIPPLE_S) ripples.shift();
+  }
+  renderDrops(); renderRipples();
+  const flowing = S.running || S.cur < S.target;
+  EL.tap.classList.toggle('open', flowing);
+  if (S.running || S.cur !== S.target || drops.length || ripples.length) rafId = requestAnimationFrame(frame);
 }
 
 /* ============================================================
  * Chart
+ * Everything that only changes with the chemistry, the theme or the
+ * size (grid, curve, labelled points) is painted once into an
+ * off-screen layer; each frame just stamps that layer and draws the
+ * current position and the hover read-out on top.
  * ============================================================ */
 const cv = $('chart'), ctx = cv.getContext('2d');
+const layer = document.createElement('canvas'), lctx = layer.getContext('2d');
 const M = { l: 46, r: 14, t: 12, b: 40 };
+let G = null, layerStale = true;
+function measure() {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = layer.width = Math.round(w * dpr); cv.height = layer.height = Math.round(h * dpr);
+  G = { dpr, w, h };
+  layerStale = true;
+}
 function geom() {
-  const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth, h = cv.clientHeight;
-  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const xmax = 2 * veq();
+  if (!G) measure();
+  const { w, h } = G, xmax = 2 * veq();
   return { w, h, xmax, X: v => M.l + v / xmax * (w - M.l - M.r), Y: p => M.t + (14 - Math.min(14, Math.max(0, p))) / 14 * (h - M.t - M.b) };
 }
 function niceStep(range) {
@@ -562,14 +669,14 @@ function readTheme() {
   const cs = getComputedStyle(document.documentElement);
   C = {};
   for (const k of CHART_VARS) C[k] = cs.getPropertyValue(k).trim();
+  layerStale = true;
 }
 readTheme();
 /* repaint when the theme flips (the toggle sets/removes data-theme on <html>) */
 new MutationObserver(() => { readTheme(); drawChart(); })
   .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
-function drawChart() {
-  const { w, h, xmax, X, Y } = geom();
+function drawLayer(ctx, { w, h, xmax, X, Y }) {
   ctx.clearRect(0, 0, w, h);
   ctx.font = '12px ' + C['--font-body'];
   const ind = INDICATORS[indicatorKey()];
@@ -621,8 +728,8 @@ function drawChart() {
 
   /* labelled points: dot in the point's colour, ink ring, label on a surface-coloured plate with a colour tab */
   ctx.font = '12px ' + C['--font-body']; ctx.textAlign = 'left';
-  for (const m of marks()) {
-    const p = exactPH(m.v), px = X(m.v), py = Y(p);
+  for (const m of S.marks) {
+    const p = m.pH, px = X(m.v), py = Y(p);
     const calcPoint = m.key !== 'three', r = calcPoint ? 7 : 5;
     if (S.showCalc && S.calcKey === m.key) {
       ctx.strokeStyle = C['--chart-cur']; ctx.lineWidth = 2.5;
@@ -641,9 +748,24 @@ function drawChart() {
     ctx.fillStyle = C[m.cvar]; ctx.fillRect(tx - 8, ty - 12, 4, 16);
     ctx.fillStyle = C['--ink']; ctx.fillText(txt, tx, ty);
   }
+}
+
+function drawChart() {
+  const g = geom(), { w, h, X, Y } = g;
+  if (!w || !h) return;
+  if (layerStale) {
+    lctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+    drawLayer(lctx, g);
+    layerStale = false;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.drawImage(layer, 0, 0);
+  ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+  ctx.font = '12px ' + C['--font-body'];
 
   /* current position */
-  const pc = exactPH(S.cur), cx = X(S.cur), cy = Y(pc);
+  const pc = S.pH, cx = X(S.cur), cy = Y(pc);
   ctx.strokeStyle = C['--chart-cur']; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, h - M.b); ctx.moveTo(M.l, cy); ctx.lineTo(cx, cy); ctx.stroke();
   ctx.setLineDash([]);
@@ -662,6 +784,13 @@ function drawChart() {
     ctx.fillStyle = C['--chart-tiptx']; ctx.textAlign = 'left'; ctx.fillText(t, bx + 5, by + 14);
   }
 }
+/* pointer moves can arrive many times a frame: paint at most once per frame */
+let paintQueued = false;
+function requestPaint() {
+  if (paintQueued) return;
+  paintQueued = true;
+  requestAnimationFrame(() => { paintQueued = false; drawChart(); });
+}
 function chartPos(ev) {
   const r = cv.getBoundingClientRect(), { xmax, w } = geom();
   const x = ev.clientX - r.left, y = ev.clientY - r.top;
@@ -669,20 +798,25 @@ function chartPos(ev) {
 }
 function markAt(x, y) {
   const { X, Y } = geom();
-  return marks().slice(0, 3).find(m => Math.hypot(X(m.v) - x, Y(exactPH(m.v)) - y) <= 12);
+  return S.marks.slice(0, 3).find(m => Math.hypot(X(m.v) - x, Y(m.pH) - y) <= 12);
 }
-cv.addEventListener('mousemove', e => {
+function hover(e) {
   const p = chartPos(e);
   S.hoverV = p.v;
   cv.style.cursor = markAt(p.x, p.y) ? 'pointer' : 'crosshair';
-  drawChart();
-});
-cv.addEventListener('mouseleave', () => { S.hoverV = null; drawChart(); });
+  requestPaint();
+}
+function unhover() { S.hoverV = null; requestPaint(); }
+/* pointer events, so the read-out follows a finger or a pen as well as a mouse */
+cv.addEventListener('pointermove', hover);
+cv.addEventListener('pointerdown', hover);
+cv.addEventListener('pointerleave', unhover);
+cv.addEventListener('pointercancel', unhover);
 cv.addEventListener('click', e => {
   const p = chartPos(e), m = markAt(p.x, p.y);
   if (m) selectPoint(m.key); else gotoV(p.v);
 });
-new ResizeObserver(drawChart).observe(cv);
+new ResizeObserver(() => { measure(); drawChart(); }).observe(cv);
 
 /* ============================================================
  * Events
@@ -702,19 +836,22 @@ bindConc('cAr', 'cA', 'Ca'); bindConc('cBr', 'cB', 'Cb');
 $('acid').addEventListener('change', e => { S.acid = e.target.value; rebuild(true); });
 $('base').addEventListener('change', e => { S.base = e.target.value; rebuild(true); });
 
-$('vol').addEventListener('input', e => { S.running = false; $('run').textContent = '▶ Run'; setVolume(+e.target.value, false); refresh(); });
-$('run').addEventListener('click', () => {
-  S.running = !S.running;
-  if (S.running && S.cur >= vmax() - 1e-9) { S.running = false; return; }
-  if (S.running) S.target = Math.max(S.target, S.cur);
-  $('run').textContent = S.running ? '❚❚ Pause' : '▶ Run';
+EL.vol.addEventListener('input', e => { setRunning(false); setVolume(+e.target.value, false); });
+EL.run.addEventListener('click', () => {
+  if (!S.running && S.cur >= vmax() - 1e-9) return;
+  if (!S.running) S.target = Math.max(S.target, S.cur);
+  setRunning(!S.running);
 });
-$('reset').addEventListener('click', () => { S.running = false; $('run').textContent = '▶ Run'; drops.length = 0; setVolume(0, false); refresh(); });
-document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
-  S.running = false; $('run').textContent = '▶ Run';
+/* Reset refills the burette quickly instead of snapping back */
+$('reset').addEventListener('click', () => {
+  setRunning(false); drops.length = 0; ripples.length = 0;
+  setVolume(0, true, Math.max(POUR_RATE, S.cur / 0.4));
+});
+EL.adds.forEach(b => b.addEventListener('click', () => {
+  setRunning(false);
   setVolume(S.target + +b.dataset.add, true);
 }));
-document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => gotoV(veq() * +b.dataset.goto)));
+EL.gotos.forEach(b => b.addEventListener('click', () => gotoV(veq() * +b.dataset.goto)));
 
 /* ============================================================
  * Theme toggle (same behaviour as the Chemculator hub: localStorage "theme" = light | dark;
@@ -740,7 +877,6 @@ document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click'
 })();
 
 rebuild(true);
-requestAnimationFrame(frame);
 </script>
 </body>
 </html>
