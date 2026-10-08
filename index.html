@@ -89,7 +89,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
           </div>
 
           <div class="result-controls" id="result-controls">
-            <button type="button" id="em-toggle" class="em-toggle-btn">Compare to full EM spectrum &darr;</button>
+            <button type="button" id="em-toggle" class="em-toggle-btn" aria-expanded="false" aria-controls="em-reveal-wrap">Compare to full EM spectrum &darr;</button>
             <div class="em-reveal-wrap" id="em-reveal-wrap">
               <p class="em-strip-label">Full electromagnetic spectrum (continuous)</p>
               <div id="em-bar-wrap" class="em-bar-wrap">
@@ -120,8 +120,8 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
           <div class="transition-panel-header">
             <p class="transition-panel-title" id="transition-panel-title"></p>
             <div class="view-mode-toggle" role="group" aria-label="Transition view mode">
-              <button type="button" id="mode-levels" class="view-mode-btn active">Energy levels</button>
-              <button type="button" id="mode-atom" class="view-mode-btn">Atomic view</button>
+              <button type="button" id="mode-levels" class="view-mode-btn active" aria-pressed="true">Energy levels</button>
+              <button type="button" id="mode-atom" class="view-mode-btn" aria-pressed="false">Atomic view</button>
             </div>
           </div>
           <div class="transition-stage">

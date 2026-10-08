@@ -624,33 +624,49 @@
     panel.hidden = false;
     document.getElementById('transition-empty').hidden = true;
 
+    panelCloseToken += 1;   // a close that is still fading must not hide the panel we just opened
     if (firstOpen) {
       panel.classList.remove('appear');
       void panel.offsetWidth;
       panel.classList.add('appear');
+      updateTransitionPanelText();
+      playActiveViewAnimation();
+      return;
     }
-
-    updateTransitionPanelText();
-    playActiveViewAnimation();
+    Motion.crossfade(transitionStage(), () => {
+      updateTransitionPanelText();
+      playActiveViewAnimation();
+    });
   }
 
+  function transitionStage() {
+    return document.getElementById('energy-svg').parentNode;
+  }
+
+  let panelCloseToken = 0;
   function closeTransitionPanel() {
     clearActiveTransitionVisuals();
     state.selectedLine = null;
+    document.querySelectorAll('.wavelength-btn.active').forEach((el) => el.classList.remove('active'));
     const panel = document.getElementById('transition-panel');
-    if (panel) {
+    if (!panel || panel.hidden) { updateTransitionEmpty(); return; }
+    /* fade the open panel out, then put the empty state in its place */
+    const token = ++panelCloseToken;
+    Motion.exit(panel, { hide: false }).then(() => {
+      if (token !== panelCloseToken) return;
       panel.hidden = true;
       panel.classList.remove('appear');
-    }
-    updateTransitionEmpty();
-    document.querySelectorAll('.wavelength-btn.active').forEach((el) => el.classList.remove('active'));
+      updateTransitionEmpty();
+    });
   }
 
   /* Empty-state of the Transition diagram card (hydrogen only). */
   function updateTransitionEmpty() {
     const empty = document.getElementById('transition-empty');
     if (!empty) return;
-    empty.hidden = Boolean(state.selectedLine);
+    /* stays out of the way until a closing panel has finished fading */
+    const panel = document.getElementById('transition-panel');
+    empty.hidden = Boolean(state.selectedLine) || Boolean(panel && !panel.hidden);
     empty.textContent = isHydrogen()
       ? 'Select a spectral line to see the electron transition.'
       : 'Transition diagrams are available for hydrogen only. Choose hydrogen as the light source to explore the electron transitions behind its lines.';
@@ -685,12 +701,18 @@
   function setViewMode(mode) {
     if (state.viewMode === mode) return;
     state.viewMode = mode;
-    document.getElementById('mode-levels').classList.toggle('active', mode === 'levels');
-    document.getElementById('mode-atom').classList.toggle('active', mode === 'atom');
-    setSvgHidden(document.getElementById('energy-svg'), mode !== 'levels');
-    setSvgHidden(document.getElementById('atom-svg'), mode !== 'atom');
-    updateTransitionPanelText();
-    playActiveViewAnimation();
+    ['levels', 'atom'].forEach((m) => {
+      const btn = document.getElementById('mode-' + m);
+      btn.classList.toggle('active', mode === m);
+      btn.setAttribute('aria-pressed', String(mode === m));
+    });
+    /* the two views are separate drawings: fade from one to the other */
+    Motion.crossfade(transitionStage(), () => {
+      setSvgHidden(document.getElementById('energy-svg'), mode !== 'levels');
+      setSvgHidden(document.getElementById('atom-svg'), mode !== 'atom');
+      updateTransitionPanelText();
+      playActiveViewAnimation();
+    });
   }
 
   function playActiveViewAnimation() {
@@ -1031,10 +1053,14 @@
         btn.textContent = 'Hide full EM spectrum \u2191';
         btn.classList.add('active');
       } else {
-        wrap.classList.remove('phase-visible', 'animate-in');
         btn.textContent = 'Compare to full EM spectrum \u2193';
         btn.classList.remove('active');
+        /* closing mirrors opening: fade out, then take it out of the layout */
+        Motion.exit(wrap, { hide: false }).then(() => {
+          if (!state.emVisible) wrap.classList.remove('phase-visible', 'animate-in');
+        });
       }
+      btn.setAttribute('aria-expanded', String(state.emVisible));
     });
   }
 
@@ -1068,7 +1094,10 @@
   function showResult() {
     state.resultShown = true;
     document.getElementById('spectrum-empty').hidden = true;
-    document.getElementById('spectrum-body').hidden = false;
+    const body = document.getElementById('spectrum-body');
+    const arriving = body.hidden;
+    body.hidden = false;
+    if (arriving) Motion.enter(body, { y: 6 });
     renderResultScreen();
     document.getElementById('result-svg').classList.add('visible');
     document.getElementById('stage-note').textContent = isHydrogen()
@@ -1088,7 +1117,10 @@
     clearPendingTimeouts();
     updatePickerHighlight();
     renderHeadline();
-    renderApparatus(playSequence);
+    /* the apparatus is redrawn from scratch; after the first paint, fade from the old drawing to the new */
+    const svg = document.getElementById('apparatus-svg');
+    if (svg.firstChild) Motion.crossfade(svg, () => renderApparatus(playSequence));
+    else renderApparatus(playSequence);
     updateSetupHint();
 
     if (!state.powered) {
