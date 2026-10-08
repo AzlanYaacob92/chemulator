@@ -1,0 +1,393 @@
+/* =============================================================
+   uiverse-components.css — Uiverse.io components adapted to the
+   Lavender + Willow design system, for the Atomic Emission page.
+
+   Load AFTER design-system.css and styles.css:
+     <link rel="stylesheet" href="uiverse-components.css">
+
+   Everything is scoped under `body.emission` so titration.html is
+   untouched. Colour comes only from design-system.css tokens (no hex).
+   Source components are MIT-licensed (Uiverse.io, github.com/uiverse-io/galaxy).
+   See uiverse-components.md for markup notes and contrast table.
+   ============================================================= */
+
+
+/* -------------------------------------------------------------
+   1. POWER SWITCH  (.light-switch  >  input#power-toggle + track + knob)
+   Original : "simple, small, switcher" — Uiverse.io/catraco/soft-falcon-9
+              https://uiverse.io/catraco/soft-falcon-9
+   Author   : @catraco     License: MIT (Uiverse)
+   Changed  : red/green + grey hex palette -> tokens; knob is the original
+              "disc ringed in the track colour" (border = track colour);
+              off = neutral muted track, on = willow (positive); added
+              44px target, 3px focus ring, disabled, dark mode, reduced
+              motion. State is never colour-only: knob also changes side
+              and the visible label text still reads "Power on/off".
+   Markup   : unchanged (existing .light-switch markup).
+   ------------------------------------------------------------- */
+body.emission .light-switch {
+  --uv-sw-track: var(--muted);
+  --uv-sw-knob: var(--card);
+  position: relative;
+  gap: var(--sp-3);
+  min-height: 44px;
+}
+body.emission .light-switch-track {
+  box-sizing: border-box;
+  width: 54px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--uv-sw-track);
+  transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+body.emission .light-switch-knob {
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  border: 4px solid var(--uv-sw-track);   /* the catraco ring: hides the edge, leaves a 22px disc */
+  border-radius: 50%;
+  background: var(--uv-sw-knob);
+  transform: translateX(0);
+  transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease),
+              border-color var(--dur) var(--ease);
+}
+body.emission .light-switch:hover .light-switch-track { box-shadow: var(--shadow-1); }
+
+body.emission .light-switch input:checked + .light-switch-track {
+  --uv-sw-track: var(--accent);
+  --uv-sw-knob: var(--accent-ink);
+  background: var(--accent);
+  border-color: transparent;
+}
+body.emission .light-switch input:checked + .light-switch-track .light-switch-knob {
+  transform: translateX(24px);
+  background: var(--accent-ink);
+  border-color: var(--accent);
+}
+body.emission .light-switch input:focus-visible + .light-switch-track {
+  outline: 3px solid transparent;          /* visible in forced-colours mode */
+  outline-offset: 3px;
+  box-shadow: var(--focus-ring);
+}
+body.emission .light-switch input:disabled + .light-switch-track { opacity: .5; }
+body.emission .light-switch:has(input:disabled) { cursor: not-allowed; }
+
+
+/* -------------------------------------------------------------
+   2. SOURCE PICKER TILES  (.source-picker > button.sig-card)
+   Original : "radio / select / tab" tray — Uiverse.io/Yaya12085/rude-mouse-79
+              https://uiverse.io/Yaya12085/rude-mouse-79
+   Author   : @Yaya12085   License: MIT (Uiverse)
+   Changed  : only the idea is taken: options sit in a recessed tray and the
+              chosen one is "raised". Tray = --bg-tint; selected tile gets the
+              raised --card surface, a 2px --primary ring AND a corner check
+              badge (so selection does not rely on colour alone). Existing
+              flip/hover behaviour of .sig-card is left intact.
+   Markup   : unchanged. Selected state hooks: .sig-card.active and
+              [aria-pressed="true"].
+   ------------------------------------------------------------- */
+body.emission .source-picker {
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  gap: var(--sp-3);
+}
+body.emission .source-picker .sig-card { min-height: 44px; }
+
+body.emission .source-picker .sig-card.active,
+body.emission .source-picker .sig-card[aria-pressed="true"] {
+  background-color: var(--card);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary), var(--shadow-2);
+}
+/* check badge — drawn with borders, no glyph for screen readers */
+body.emission .source-picker .sig-card.active::after,
+body.emission .source-picker .sig-card[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 6;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--primary);
+  pointer-events: none;
+}
+body.emission .source-picker .sig-card.active::before,
+body.emission .source-picker .sig-card[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  right: 11px;
+  z-index: 7;
+  width: 4px;
+  height: 8px;
+  border: solid var(--primary-soft-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+  pointer-events: none;
+}
+body.emission .source-picker .sig-card:focus-visible {
+  outline: 3px solid transparent;
+  box-shadow: var(--focus-ring), var(--shadow-2);
+}
+body.emission .source-picker .sig-card.active:focus-visible {
+  box-shadow: 0 0 0 2px var(--primary), var(--focus-ring), var(--shadow-2);
+}
+
+
+/* -------------------------------------------------------------
+   3. SEGMENTED TOGGLE  (.view-mode-toggle > #mode-levels + #mode-atom)
+   Original : "Tabs" sliding-highlight radio group — Uiverse.io/Admin12121/cold-bobcat-20
+              https://uiverse.io/Admin12121/cold-bobcat-20
+   Author   : @Admin12121  License: MIT (Uiverse)
+   Changed  : original is radio+label with a mix-blend-mode:difference thumb and
+              a spring `linear()` ease; here it is a plain 2-button group with a
+              ::before thumb that slides to the .active button (:has), calm
+              --ease, token colours, 44px height, 3px ring on the button.
+              Without :has() support it degrades to the existing
+              filled-active style. Active = soft fill + 1px --primary border
+              + semibold text (not colour alone).
+   Markup   : unchanged; JS keeps toggling .active (add aria-pressed if desired).
+   ------------------------------------------------------------- */
+body.emission .view-mode-toggle {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--bg-tint);
+  overflow: hidden;
+}
+body.emission .view-mode-btn {
+  position: relative;
+  z-index: 1;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font-weight: var(--w-medium);
+  white-space: nowrap;
+}
+body.emission .view-mode-btn + .view-mode-btn { border-left: 0; }
+body.emission .view-mode-btn:hover:not(.active) { background: transparent; color: var(--ink); }
+body.emission .view-mode-btn.active {
+  background: var(--primary-soft);
+  color: var(--primary-soft-ink);
+  font-weight: var(--w-semi);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+body.emission .view-mode-btn:focus-visible {
+  outline: 3px solid transparent;
+  outline-offset: 0;
+  box-shadow: var(--focus-ring);
+}
+body.emission .view-mode-btn.active:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--primary), var(--focus-ring);
+}
+
+@supports selector(:has(*)) {
+  body.emission .view-mode-toggle::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc((100% - 6px) / 2);
+    border-radius: var(--r-pill);
+    background: var(--primary-soft);
+    box-shadow: inset 0 0 0 1px var(--primary), var(--shadow-1);
+    transform: translateX(0);
+    transition: transform var(--dur) var(--ease);
+    pointer-events: none;
+  }
+  body.emission .view-mode-toggle:has(.view-mode-btn + .view-mode-btn.active)::before {
+    transform: translateX(100%);
+  }
+  /* the thumb now carries the fill + border */
+  body.emission .view-mode-btn.active { background: transparent; box-shadow: none; }
+  body.emission .view-mode-btn.active:focus-visible { box-shadow: var(--focus-ring); }
+}
+
+
+/* -------------------------------------------------------------
+   4. BUTTONS — Back / Next / EM compare
+   Original : "ov-btn-slide-left" outline button with sliding fill —
+              Uiverse.io/Juanes200122/smart-skunk-68
+              https://uiverse.io/Juanes200122/smart-skunk-68
+   Author   : @Juanes200122  License: MIT (Uiverse)
+   Changed  : <a> -> our <button>s; 3px square corners -> --r-pill; hex -> tokens;
+              fill is a clip-path wipe on ::after (no overflow:hidden, so
+              ::before stays free for tooltips); text colour does NOT change
+              on hover (contrast is held the whole wipe). Secondary
+              (.stage-nav-btn, .em-toggle-btn): outline -> soft fill.
+              Primary (.stage-nav-btn-primary, the ONE saturated element):
+              --primary -> --primary-hover. .em-toggle-btn.active stays
+              filled soft with a --primary border. Disabled: no wipe.
+   Markup   : unchanged.
+   ------------------------------------------------------------- */
+/* .stage-nav-btn is not in the current index.html (Back/Next were removed by the
+   layout pass) but is kept self-contained here in case it returns. */
+body.emission .stage-nav-btn {
+  font: var(--t-small);
+  font-weight: var(--w-semi);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px 20px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--primary-soft-ink);
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+              transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+body.emission .stage-nav-btn:active:not(:disabled) { transform: translateY(1px); }
+body.emission .stage-nav-btn-primary { border-color: transparent; box-shadow: var(--shadow-1); }
+
+body.emission .stage-nav-btn,
+body.emission .em-toggle-btn {
+  position: relative;
+  isolation: isolate;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+}
+body.emission .stage-nav-btn::after,
+body.emission .em-toggle-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--primary-soft);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--dur-slow) var(--ease);
+  pointer-events: none;
+}
+body.emission .stage-nav-btn:hover:not(:disabled),
+body.emission .em-toggle-btn:hover { background: transparent; }
+body.emission .stage-nav-btn:hover:not(:disabled)::after,
+body.emission .em-toggle-btn:hover::after { clip-path: inset(0 0 0 0); }
+
+/* primary */
+body.emission .stage-nav-btn-primary { background: var(--primary); color: var(--primary-ink); }
+body.emission .stage-nav-btn-primary::after { background: var(--primary-hover); }
+body.emission .stage-nav-btn-primary:hover:not(:disabled) { background: var(--primary); }
+
+/* compare toggle, open state */
+body.emission .em-toggle-btn.active { background: var(--primary-soft); border-color: var(--primary); }
+body.emission .em-toggle-btn.active::after { background: var(--card-2); }
+
+body.emission .stage-nav-btn:focus-visible,
+body.emission .em-toggle-btn:focus-visible {
+  outline: 3px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+body.emission .stage-nav-btn-primary:focus-visible { box-shadow: var(--focus-ring), var(--shadow-1); }
+
+body.emission .stage-nav-btn:disabled { opacity: .5; cursor: not-allowed; }
+body.emission .stage-nav-btn:disabled::after { clip-path: inset(0 100% 0 0); }
+
+
+/* -------------------------------------------------------------
+   5. TOOLTIP  (optional) — any element with data-uv-tip="text"
+   Original : "tooltip" — Uiverse.io/G4b413l/dry-turtle-84
+              https://uiverse.io/G4b413l/dry-turtle-84
+   Author   : @G4b413l  License: MIT (Uiverse)
+   Changed  : child <div> -> attr() on ::before (no extra markup); arrow dropped;
+              translucent grey -> solid inverted token pair (--ink-2 on --card);
+              also opens on keyboard focus, hides on Esc-less blur; fades in.
+              Not for .sig-card tiles (they clip overflow) — use on a wrapper
+              or on the buttons above. Supplementary only: keep an aria-label
+              or visible text for the same information.
+   ------------------------------------------------------------- */
+body.emission [data-uv-tip] { position: relative; }
+body.emission [data-uv-tip]::before {
+  content: attr(data-uv-tip);
+  position: absolute;
+  z-index: 30;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 220px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--ink-2);
+  color: var(--card);
+  font: var(--t-small);
+  text-align: center;
+  box-shadow: var(--shadow-2);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease),
+              visibility 0s linear var(--dur);
+  pointer-events: none;
+}
+body.emission [data-uv-tip]:hover::before,
+body.emission [data-uv-tip]:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+
+/* -------------------------------------------------------------
+   6. SLIM SCROLLBAR  (optional; page + the right column)
+   Original : none in Uiverse used verbatim — standard thin scrollbar
+              pattern (Uiverse "scrollbar" snippets are all webkit-only
+              and decorative; this uses the standards properties first).
+   Changed  : tokens only; thumb --faint, widens colour on hover.
+   ------------------------------------------------------------- */
+body.emission,
+body.emission .workspace {
+  scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
+}
+body.emission::-webkit-scrollbar,
+body.emission .workspace::-webkit-scrollbar { width: 10px; height: 10px; }
+body.emission::-webkit-scrollbar-track,
+body.emission .workspace::-webkit-scrollbar-track { background: transparent; }
+body.emission::-webkit-scrollbar-thumb,
+body.emission .workspace::-webkit-scrollbar-thumb {
+  background: var(--faint);
+  border: 3px solid var(--bg);
+  border-radius: var(--r-pill);
+}
+body.emission::-webkit-scrollbar-thumb:hover,
+body.emission .workspace::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+
+/* -------------------------------------------------------------
+   Reduced motion — kill every transition added above
+   ------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  body.emission .light-switch-track,
+  body.emission .light-switch-knob,
+  body.emission .source-picker .sig-card,
+  body.emission .view-mode-toggle::before,
+  body.emission .view-mode-btn,
+  body.emission .stage-nav-btn,
+  body.emission .stage-nav-btn::after,
+  body.emission .em-toggle-btn,
+  body.emission .em-toggle-btn::after,
+  body.emission [data-uv-tip]::before {
+    transition: none !important;
+  }
+}
