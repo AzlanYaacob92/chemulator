@@ -998,8 +998,9 @@ html:has(.tit) { height: 100%; }
 .tit .page button:not(.theme-toggle) {
   font: var(--t-small);
   font-weight: var(--w-semi);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 6px 14px;
-  min-height: 34px;
+  min-height: var(--control-h);
   border-radius: var(--r-pill);
   cursor: pointer;
   border: 1px solid var(--line-strong);

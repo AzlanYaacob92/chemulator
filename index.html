@@ -18,7 +18,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
   <link rel="stylesheet" href="uiverse-components.css" />
 </head>
 <body class="emission">
-  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">&#127769;</button>
+  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button" data-icon="moon"></button>
 
   <div class="page app">
     <!-- LEFT: Light source. Full-height, static (desktop); compact sticky bar (< 960px). -->
@@ -139,6 +139,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
   </div>
 
   <script src="chemistry.js"></script>
+  <script src="icons.js"></script>
   <script src="motion.js"></script>
   <script src="app.js"></script>
 </body>

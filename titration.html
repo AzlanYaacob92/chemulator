@@ -15,7 +15,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="tit">
-<button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">🌙</button>
+<button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button" data-icon="moon"></button>
 
 <div class="page">
 
@@ -83,9 +83,9 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
         <span class="ro">Base added <strong id="roAdd">0.00 mL</strong></span>
         <span class="ro">pH <strong id="roPH">–</strong></span>
         <div class="btngrp">
-          <button id="run" class="primary">▶ Run</button>
+          <button id="run" class="primary"><span data-icon="play"></span><span id="runLabel">Run</span></button>
           <button data-add="0.1">+0.1</button><button data-add="1">+1</button><button data-add="5">+5 mL</button>
-          <button id="reset">↺ Reset</button>
+          <button id="reset"><span data-icon="rotate-ccw"></span>Reset</button>
           <button data-goto="0.5">½ eq.</button><button data-goto="1">Eq.</button><button data-goto="1.5">3⁄2 eq.</button>
         </div>
       </div>
@@ -93,7 +93,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
   </main>
 
   <div class="calcbar">
-    <button id="showCalc" class="sig" aria-pressed="false">Show calculation ▾</button>
+    <button id="showCalc" class="sig" aria-pressed="false"><span id="showCalcLabel">Show calculation</span><span id="showCalcIcon" data-icon="chevron-down"></span></button>
     <button class="chip sig" data-key="init" aria-pressed="false">Initial (0 mL)</button>
     <button class="chip sig" data-key="half" aria-pressed="false">½ equivalence</button>
     <button class="chip sig" data-key="eq" aria-pressed="false">Equivalence</button>
@@ -102,6 +102,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
   <section class="card calcbox" id="calc"></section>
 </div>
 
+<script src="icons.js"></script>
 <script src="motion.js"></script>
 <script>
 /* ============================================================
@@ -417,7 +418,7 @@ function rebuild(resetVolume = true) {
 
   const Vm = vmax(), vol = $('vol');
   vol.max = Vm; vol.step = Math.max(0.01, +(Vm / 2000).toFixed(3));
-  if (resetVolume) { S.cur = S.target = 0; S.running = false; $('run').textContent = '▶ Run'; }
+  if (resetVolume) { S.cur = S.target = 0; setRunning(false); }
   else { S.cur = S.target = Math.min(S.cur, Vm); }
 
   const ac = A(), bs = B(), key = indicatorKey(), ind = INDICATORS[key];
@@ -456,7 +457,8 @@ function renderCalc() {
   });
   const btn = $('showCalc');
   btn.setAttribute('aria-pressed', S.showCalc);
-  btn.textContent = S.showCalc ? 'Hide calculation ▴' : 'Show calculation ▾';
+  $('showCalcLabel').textContent = S.showCalc ? 'Hide calculation' : 'Show calculation';
+  $('showCalcIcon').innerHTML = Icons.svg(S.showCalc ? 'chevron-up' : 'chevron-down');
   /* the ring around the chosen point lives in the cached chart layer */
   layerStale = true; requestPaint();
   const showing = S.showCalc && S.calcKey ? S.calcKey : '';
@@ -497,7 +499,7 @@ document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () =
 const EL = {
   liquid: $('buretteLiquid'), meniscus: $('meniscus'), meniscusLine: $('meniscusLine'), tap: $('tap'),
   flask: $('flaskLiquid'), surface: $('flaskSurface'),
-  roAdd: $('roAdd'), roPH: $('roPH'), vol: $('vol'), run: $('run'),
+  roAdd: $('roAdd'), roPH: $('roPH'), vol: $('vol'), run: $('run'), runLabel: $('runLabel'), runIcon: $('run').firstElementChild,
   gotos: [...document.querySelectorAll('[data-goto]')], adds: [...document.querySelectorAll('[data-add]')],
 };
 /* half-width of the inside of the flask at height y (neck above 535, cone below) */
@@ -532,7 +534,8 @@ function refresh() {
 
 function setRunning(on) {
   S.running = on;
-  EL.run.textContent = on ? '❚❚ Pause' : '▶ Run';
+  EL.runLabel.textContent = on ? 'Pause' : 'Run';
+  EL.runIcon.innerHTML = Icons.svg(on ? 'pause' : 'play');
   if (on) { S.rate = POUR_RATE; kick(); }
 }
 /* animate = pour towards v at `rate` mL/s; otherwise jump there (dragging the slider) */
@@ -860,7 +863,7 @@ EL.gotos.forEach(b => b.addEventListener('click', () => gotoV(veq() * +b.dataset
 (function () {
   var THEME_KEY = 'theme', btn = document.getElementById('theme-toggle');
   function isDark() { var a = document.documentElement.getAttribute('data-theme'); return a ? a === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches); }
-  function icon() { btn.textContent = isDark() ? '☀️' : '🌙'; btn.setAttribute('aria-pressed', String(isDark())); }
+  function icon() { btn.innerHTML = Icons.svg(isDark() ? 'sun' : 'moon'); btn.setAttribute('aria-pressed', String(isDark())); }
   icon();
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { icon(); readTheme(); drawChart(); });
   btn.addEventListener('click', function () {
@@ -877,6 +880,8 @@ EL.gotos.forEach(b => b.addEventListener('click', () => gotoV(veq() * +b.dataset
 })();
 
 rebuild(true);
+/* the chart's text is drawn on a canvas: redraw it once the web fonts have arrived */
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layerStale = true; drawChart(); });
 </script>
 </body>
 </html>
