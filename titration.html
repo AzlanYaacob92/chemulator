@@ -5,290 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Chemulator · Acid–Base Titration</title>
 
-<!-- Flash-free theme init: runs before first paint (and before the stylesheet) so a
-     returning visitor never sees light mode flash before dark mode kicks in.
-     Same key/behaviour as the Chemculator hub: localStorage "theme" = light | dark. -->
 <script>
-(function () {
-  try {
-    var saved = localStorage.getItem('theme');
-    if (saved === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-  } catch (e) { /* localStorage unavailable: fall back to light mode */ }
-})();
+try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.documentElement.setAttribute('data-theme', s);}catch(e){}
 </script>
-
-<style>
-  /* =============================================================
-     Chemculator shared tokens (identical VALUES on every page).
-     Basis: the Uiverse card - flat saturated fill, chunky 10 -> 15px radius,
-     strong shadow, springy hover. See the suite design spec v1.
-     ============================================================= */
-  :root {
-    --bg: #faf7f1; --card: #ffffff; --ink: #23302f; --muted: #6b7671; --line: #e8e1d4; --calc-bg: #f6f2ea;
-    --muted-2: #5a6560;            /* muted text that must clear 4.5:1 on cream / soft panels */
-    --title: #134e4a;
-
-    --teal-700: #0f766e; --teal-600: #0d9488; --teal-100: #cce9e5;
-    --ring: var(--gold);           /* focus ring: #b45309 light / #f5b942 dark (3px outline) */
-    --amber-500: #f59e0b; --amber-100: #fdecc8; --gold: #b45309;
-    --amber-panel-bg: #fdecc8; --amber-panel-border: #f59e0b; --amber-panel-text: #7c3a06;
-    --thead: #d9f3fb;              /* ICE-table header tint (teal @ ~30% on white) */
-
-    /* signature fills: rest / hover / text on fill */
-    --teal-fill: #67e1ff;  --teal-fill-h: #6797ff;  --on-teal: #06232b;  --on-teal-h: #06232b;
-    --gold-fill: #ffd36b;  --gold-fill-h: #ff9f5a;  --on-gold: #2b1a02;  --on-gold-h: #2b1a02;
-    --lilac-fill: #c9b8ff; --lilac-fill-h: #9d86ff; --on-lilac: #140a33; --on-lilac-h: #140a33;
-
-    --shadow: 0 6px 18px rgba(19, 78, 74, .14);
-    --glow-teal: 0 0 0 0 transparent;  --glow-gold: 0 0 0 0 transparent;  --glow-lilac: 0 0 0 0 transparent;
-    --glow-teal-h: 0 0 0 0 transparent;  --glow-gold-h: 0 0 0 0 transparent;  --glow-lilac-h: 0 0 0 0 transparent;
-    --focus-ring: 0 0 0 3px rgba(13, 148, 136, .28);
-
-    --sig-radius: 10px; --sig-radius-hover: 15px; --sig-dur: .4s;
-    --sig-spring: cubic-bezier(0.34, 1.56, 0.64, 1);   /* springy overshoot, transform only (as the hub) */
-    --sig-shadow-hover: 0 0 10px 5px rgba(0, 0, 0, .35);
-    --radius: 14px; --radius-ctl: 10px;
-    --display: Georgia, "Times New Roman", serif;
-    --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
-    --ease-buttery: cubic-bezier(0.16, 1, 0.3, 1);
-
-    /* chart canvas + apparatus SVG (read from JS via getComputedStyle, redrawn on theme change) */
-    --chart-axis: #5c6a66;
-    --chart-curve: #134e4a;
-    --chart-band: rgba(157, 134, 255, .20);  --chart-band-text: #4a3a8a;
-    --chart-eqline: rgba(217, 138, 0, .85);
-    --chart-cur: #3a68e8;
-    --chart-hover: #8a9791;
-    --chart-tipbg: var(--ink);  --chart-tiptx: var(--bg);
-    --chart-beyond: rgba(35, 48, 47, .07);
-    --m-init: #67e1ff; --m-half: #c9b8ff; --m-eq: #ffd36b; --m-three: #c9d1cc;
-    --glass: #3a4a48; --liq: #cfe6f7; --drop: #9ccaf0; --clamp: #8b95a7;
-
-    color-scheme: light;
-  }
-  [data-theme="dark"] {
-    --bg: #0b1015; --card: #131c24; --ink: #e8eef4; --muted: #8a9aa8; --line: #243240; --calc-bg: #172230;
-    --muted-2: #a4b4c2;
-    --title: var(--ink);
-
-    --teal-700: #2dd4bf; --teal-600: #2dd4bf; --teal-100: #2a6b63;
-    --amber-500: #f5b942; --amber-100: #3a3220; --gold: #f5b942;
-    --amber-panel-bg: #2a230f; --amber-panel-border: #6b4a12; --amber-panel-text: #f0c473;
-    --thead: #15303f;
-
-    --teal-fill: #2bb8d9;  --teal-fill-h: #4f7df0;  --on-teal: #06232b;  --on-teal-h: #020c10;  /* #06232b on #4f7df0 is only 4.31:1 */
-    --gold-fill: #e8b23d;  --gold-fill-h: #e8843f;  --on-gold: #2b1a02;  --on-gold-h: #2b1a02;
-    --lilac-fill: #8e78e0; --lilac-fill-h: #7058d6; --on-lilac: #140a33; --on-lilac-h: #ffffff;  /* dark text on #7058d6 is only 3.6:1 */
-
-    --shadow: 0 18px 40px -20px rgba(0, 0, 0, .85);
-    --glow-teal: 0 0 18px rgba(43, 184, 217, .28);  --glow-gold: 0 0 18px rgba(232, 178, 61, .28);  --glow-lilac: 0 0 18px rgba(142, 120, 224, .28);
-    --glow-teal-h: 0 0 32px rgba(43, 184, 217, .55);  --glow-gold-h: 0 0 32px rgba(232, 178, 61, .55);  --glow-lilac-h: 0 0 32px rgba(142, 120, 224, .55);
-    --focus-ring: 0 0 0 3px rgba(45, 212, 191, .35);
-
-    --chart-axis: #7d92a6;
-    --chart-curve: #67e1ff;
-    --chart-band: rgba(142, 120, 224, .26);  --chart-band-text: #c9b8ff;
-    --chart-eqline: rgba(232, 178, 61, .85);
-    --chart-cur: #6797ff;
-    --chart-hover: #8a9aa8;
-    --chart-beyond: rgba(232, 238, 244, .07);
-    --m-init: #2bb8d9; --m-half: #8e78e0; --m-eq: #e8b23d; --m-three: #5f7284;
-    --glass: #a9bccd; --liq: #2d6288; --drop: #5db0e6; --clamp: #53687c;
-
-    color-scheme: dark;
-  }
-
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 14px/1.45 var(--body);
-    -webkit-font-smoothing: antialiased;
-    transition: background-color .35s var(--ease-buttery), color .35s var(--ease-buttery);
-  }
-  [data-theme="dark"] body {
-    background-color: var(--bg);
-    background-image:
-      radial-gradient(1200px 600px at 80% -10%, #14202b 0%, transparent 60%),
-      radial-gradient(900px 500px at -10% 10%, #102219 0%, transparent 55%);
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-  }
-  sub, sup { line-height: 0; }
-  .page { min-height: 100vh; display: flex; flex-direction: column; gap: 10px; padding: 10px 16px 12px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-
-  /* ---------- theme toggle (identical on every Chemculator page) ---------- */
-  .theme-toggle {
-    position: fixed; top: 18px; right: 18px; z-index: 50;
-    width: 44px; height: 44px; border-radius: 50%;
-    border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.15rem; line-height: 1; cursor: pointer; padding: 0;
-    box-shadow: var(--shadow);
-    transition: background .35s var(--ease-buttery), transform .2s var(--ease-buttery), box-shadow .3s var(--ease-buttery);
-  }
-  .theme-toggle:hover { transform: translateY(-2px); }
-  .theme-toggle:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
-
-  /* ---------- header + controls ---------- */
-  /* margin-right reserves the top-right corner for the fixed theme toggle */
-  .top { padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin-right: 56px; }
-  .brand { min-width: 0; }
-  .top-links { display: flex; flex-wrap: wrap; gap: 0 16px; font-size: .74rem; line-height: 1.35; }
-  .home-link { color: var(--teal-700); text-decoration: none; font-weight: 600; }
-  .home-link:hover { text-decoration: underline; }
-  .home-link:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
-  .eyebrow { display: block; font-size: .74rem; line-height: 1.35; letter-spacing: .14em; text-transform: uppercase; color: var(--teal-700); font-weight: 600; }
-  .brand h1 { font-family: var(--display); font-size: 1.5rem; margin: 0; line-height: 1.15; letter-spacing: -.01em; color: var(--title); }
-  .ctrls { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-  .ctrl-row { display: flex; flex-wrap: wrap; gap: 6px 24px; align-items: center; }
-  .grp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-  .ctl { display: flex; align-items: center; gap: 6px; }
-  .ctl label { font-weight: 600; font-size: .8rem; white-space: nowrap; }
-  .ctl select, .ctl input[type=number] {
-    padding: 4px 8px; font: inherit; border: 1px solid var(--line); border-radius: var(--radius-ctl);
-    background: var(--card); color: var(--ink);
-    transition: border-color .3s var(--ease-buttery), box-shadow .3s var(--ease-buttery);
-  }
-  .ctl select option, .ctl select optgroup { background: var(--card); color: var(--ink); }
-  .ctl select:focus-visible, .ctl input[type=number]:focus-visible { outline: none; border-color: var(--teal-600); box-shadow: var(--focus-ring); }
-  .ctl input[type=number] { width: 64px; }
-  .ctl input[type=range], .vol-slider { accent-color: var(--teal-600); }
-  .ctl input[type=range] { width: 80px; }
-  .ctl input[type=range]:focus-visible, .vol-slider:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
-  .info { display: flex; flex-wrap: wrap; gap: 2px 20px; font-size: .8rem; color: var(--muted); }
-  .info b { color: var(--ink); font-weight: 600; }
-  .warn {
-    width: 100%; background: var(--amber-panel-bg); color: var(--amber-panel-text); border: 1px solid var(--amber-panel-border);
-    border-radius: var(--radius-ctl); padding: 5px 10px; font-size: .8rem; display: none;
-  }
-
-  /* ---------- apparatus + curve ---------- */
-  .main { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 10px; height: clamp(320px, 44vh, 520px); flex: none; }
-  .sim { padding: 6px; min-height: 0; }
-  .sim svg { width: 100%; height: 100%; display: block; }
-  .sim .glass { stroke: var(--glass); }
-  .sim .tk { fill: var(--glass); stroke: none; }
-  .sim .liq { fill: var(--liq); }
-  .sim .clamp { fill: var(--clamp); }
-  .sim .handle { fill: var(--teal-fill); }
-  .sim .drop { fill: var(--drop); stroke: var(--glass); stroke-width: .6; }
-  .sim .lbl-ink { fill: var(--ink); }
-  .sim .lbl-muted { fill: var(--muted-2); }
-  .chartcard { padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  .plot { position: relative; flex: 1; min-height: 0; }
-  #chart { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
-  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-top: 6px; }
-  .vol-slider { flex: 1; min-width: 160px; }
-  .ro { font-size: .8rem; color: var(--muted); white-space: nowrap; }
-  .ro strong { color: var(--ink); font-size: 1rem; font-variant-numeric: tabular-nums; }
-  .btngrp { display: flex; flex-wrap: wrap; gap: 6px; }
-
-  /* ---------- buttons (spec B): secondary = surface + line border, accent border on hover ---------- */
-  .page button {
-    font: inherit; font-size: .8rem; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-ctl); cursor: pointer;
-    border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    transition: background-color var(--sig-dur) ease, color var(--sig-dur) ease, border-color var(--sig-dur) ease,
-                border-radius var(--sig-dur) ease, box-shadow var(--sig-dur) ease, transform var(--sig-dur) var(--sig-spring);
-  }
-  .page button:hover:not(:disabled) { border-color: var(--teal-600); background: var(--calc-bg); transform: scale(1.04); }
-  .page button:active:not(:disabled) { transform: scale(.98); transition-duration: .12s; }
-  .page button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
-  .page button:disabled { opacity: .45; cursor: not-allowed; }
-
-  /* signature fills (primary Run, Show calculation, calculation-point chips): flat fill, 10px -> 15px radius,
-     hover to the hover fill with a small springy scale - the Uiverse card in miniature */
-  .page button.primary, .page .sig {
-    --fill: var(--teal-fill); --fill-h: var(--teal-fill-h); --on: var(--on-teal); --on-h: var(--on-teal-h);
-    --g: var(--glow-teal); --g-h: var(--glow-teal-h); --halo: 0 0 0 0 transparent;
-    background: var(--fill); color: var(--on); border-color: transparent; font-weight: 900; letter-spacing: .01em;
-    box-shadow: var(--shadow), var(--g);
-  }
-  .page .sig { --halo: var(--sig-shadow-hover); border-radius: var(--sig-radius); }
-  .page button.primary:hover:not(:disabled), .page .sig:hover:not(:disabled) {
-    background: var(--fill-h); color: var(--on-h); border-color: transparent; border-radius: var(--sig-radius-hover);
-    transform: scale(1.06); box-shadow: var(--shadow), var(--halo), var(--g-h);
-  }
-
-  /* ---------- calculation ---------- */
-  .calcbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; flex: none; padding: 3px 4px; }
-  .page .calcbar .sig { padding: 7px 15px; font-size: .88rem; }
-  .page .calcbar #showCalc { margin-right: 10px; }
-  .page .chip[data-key="half"] { --fill: var(--lilac-fill); --fill-h: var(--lilac-fill-h); --on: var(--on-lilac); --on-h: var(--on-lilac-h); --g: var(--glow-lilac); --g-h: var(--glow-lilac-h); }
-  .page .chip[data-key="eq"]   { --fill: var(--gold-fill);  --fill-h: var(--gold-fill-h);  --on: var(--on-gold);  --on-h: var(--on-gold-h);  --g: var(--glow-gold);  --g-h: var(--glow-gold-h); }
-  /* active = pressed: hover fill + a clear double ring (surface gap, ink ring) so it reads in both themes */
-  .page .sig.chip.active, .page #showCalc[aria-pressed="true"] {
-    background: var(--fill-h); color: var(--on-h); border-radius: var(--sig-radius-hover); transform: scale(1.04);
-    box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--ink), var(--shadow);
-  }
-  .calcbar .note { margin-left: auto; font-size: .78rem; color: var(--muted-2); }
-  .calcbar .note b { color: var(--ink); }
-  .calcbox { flex: 1; min-height: 200px; padding: 12px 16px; overflow: auto; background: var(--calc-bg); }
-  .placeholder { color: var(--muted-2); margin: 6px 0; }
-  .chead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; border-left: 6px solid var(--teal-fill); padding-left: 10px; margin-bottom: 12px; }
-  .chead h3 { margin: 0; font-size: 1.2rem; font-family: var(--display); color: var(--title); }
-  .chead span { color: var(--muted-2); }
-  .chead .res { margin-left: auto; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
-  .chead .res small { font-weight: 400; color: var(--muted-2); font-size: .78rem; }
-  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
-  .wstep {
-    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
-    padding: 10px 14px 12px; font-size: .92rem;
-    transition: transform var(--sig-dur) var(--sig-spring), box-shadow var(--sig-dur) ease;
-  }
-  .wstep:hover { transform: translateY(-2px); }
-  .wstep h4 { margin: 0 0 8px; font-size: .95rem; display: flex; align-items: center; gap: 9px; }
-  .wstep h4 span {
-    background: var(--teal-fill); color: var(--on-teal); width: 26px; height: 26px; border-radius: 10px;
-    display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 900; flex: none;
-    box-shadow: var(--shadow), var(--glow-teal);
-    transition: background-color var(--sig-dur) ease, color var(--sig-dur) ease, border-radius var(--sig-dur) ease, transform var(--sig-dur) var(--sig-spring);
-  }
-  .wstep:hover h4 span { background: var(--teal-fill-h); color: var(--on-teal-h); border-radius: var(--sig-radius-hover); transform: rotate(-8deg) scale(1.12); }
-  /* the last step of every working is the pH result: gold = highlight */
-  .wstep:last-child h4 span { background: var(--gold-fill); color: var(--on-gold); box-shadow: var(--shadow), var(--glow-gold); }
-  .wstep:last-child:hover h4 span { background: var(--gold-fill-h); color: var(--on-gold-h); }
-  .wstep p { margin: 4px 0; }
-  .eqn { font-weight: 600; }
-  table.ice {
-    border-collapse: separate; border-spacing: 0; margin: 8px 0; width: 100%; background: var(--card);
-    border: 1px solid var(--line); border-radius: var(--radius-ctl); overflow: hidden; font-variant-numeric: tabular-nums;
-  }
-  table.ice th, table.ice td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: center; font-size: .86rem; color: var(--ink); }
-  table.ice tr > :last-child { border-right: 0; }
-  table.ice tbody tr:last-child > * { border-bottom: 0; }
-  table.ice thead th { background: var(--thead); }
-  table.ice .unit { display: block; font-weight: 400; font-size: .74rem; color: var(--muted-2); }
-  table.ice tbody th { text-align: left; background: var(--calc-bg); white-space: nowrap; }
-  .final { font-weight: 700; background: var(--amber-100); border-left: 4px solid var(--amber-500); border-radius: 8px; padding: 5px 10px; }
-
-  @media (min-width: 701px) {
-    .page { height: 100vh; min-height: 0; }   /* the calculation panel scrolls inside itself; the page does not */
-    .calcbox { flex: 1 1 0; }
-  }
-  @media (max-width: 1000px) {
-    .main { grid-template-columns: 200px minmax(0, 1fr); }
-  }
-  @media (max-width: 700px) {
-    .main { grid-template-columns: 1fr; height: auto; }
-    .sim { height: 380px; }
-    .plot { height: 320px; flex: none; }
-    .top { margin-right: 0; }
-    .brand { padding-right: 54px; }      /* keep the title clear of the fixed toggle */
-    .calcbar .note { margin-left: 0; width: 100%; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation: none !important; transition: none !important; }
-    .page button:hover:not(:disabled), .page button:active:not(:disabled), .page .sig.chip.active, .page #showCalc[aria-pressed="true"],
-    .wstep:hover, .wstep:hover h4 span, .theme-toggle:hover { transform: none !important; }
-  }
-</style>
+<link rel="stylesheet" href="design-system.css" />
+<link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="tit">
 <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">🌙</button>
 
 <div class="page">
@@ -824,9 +547,9 @@ function niceStep(range) {
   return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p;
 }
 /* ---------- theme-aware colours: read from the CSS custom properties (see :root / [data-theme="dark"]) ---------- */
-const CHART_VARS = ['--card', '--ink', '--muted-2', '--line', '--chart-axis', '--chart-curve', '--chart-band', '--chart-band-text',
-  '--chart-eqline', '--chart-cur', '--chart-hover', '--chart-tipbg', '--chart-tiptx', '--chart-beyond',
-  '--m-init', '--m-half', '--m-eq', '--m-three'];
+const CHART_VARS = ['--card', '--ink', '--muted', '--line', '--chart-axis', '--chart-band', '--chart-band-text',
+  '--chart-cur', '--chart-hover', '--chart-tipbg', '--chart-tiptx', '--chart-beyond',
+  '--m-init', '--m-half', '--m-eq', '--m-three', '--series-curve', '--series-eqline', '--font-body'];
 let C = {};
 function readTheme() {
   const cs = getComputedStyle(document.documentElement);
@@ -841,7 +564,7 @@ new MutationObserver(() => { readTheme(); drawChart(); })
 function drawChart() {
   const { w, h, xmax, X, Y } = geom();
   ctx.clearRect(0, 0, w, h);
-  ctx.font = '12px system-ui, sans-serif';
+  ctx.font = '12px ' + C['--font-body'];
   const ind = INDICATORS[indicatorKey()];
 
   /* indicator transition band */
@@ -851,7 +574,7 @@ function drawChart() {
   ctx.fillText(`${ind.name} range`, w - M.r - 4, Y(ind.hi) + 13);
 
   /* grid + tick labels */
-  ctx.strokeStyle = C['--line']; ctx.fillStyle = C['--muted-2']; ctx.lineWidth = 1;
+  ctx.strokeStyle = C['--line']; ctx.fillStyle = C['--muted']; ctx.lineWidth = 1;
   ctx.textAlign = 'right';
   for (let p = 0; p <= 14; p += 2) {
     ctx.beginPath(); ctx.moveTo(M.l, Y(p)); ctx.lineTo(w - M.r, Y(p)); ctx.stroke();
@@ -867,30 +590,30 @@ function drawChart() {
   /* axes frame + titles */
   ctx.strokeStyle = C['--chart-axis']; ctx.lineWidth = 1.5;
   ctx.strokeRect(M.l, M.t, w - M.l - M.r, h - M.t - M.b);
-  ctx.fillStyle = C['--ink']; ctx.font = '13px system-ui, sans-serif';
+  ctx.fillStyle = C['--ink']; ctx.font = '13px ' + C['--font-body'];
   ctx.fillText('Volume of base added / mL', M.l + (w - M.l - M.r) / 2, h - 6);
   ctx.save(); ctx.translate(13, M.t + (h - M.t - M.b) / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('pH', 0, 0); ctx.restore();
 
   /* equivalence-volume guide */
-  ctx.setLineDash([5, 4]); ctx.strokeStyle = C['--chart-eqline']; ctx.lineWidth = 1.25;
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = C['--series-eqline']; ctx.lineWidth = 1.25;
   ctx.beginPath(); ctx.moveTo(X(veq()), M.t); ctx.lineTo(X(veq()), h - M.b); ctx.stroke();
   ctx.setLineDash([]);
 
   if (xmax > BURETTE_MAX) {
     ctx.fillStyle = C['--chart-beyond'];
     ctx.fillRect(X(BURETTE_MAX), M.t, w - M.r - X(BURETTE_MAX), h - M.t - M.b);
-    ctx.fillStyle = C['--muted-2']; ctx.textAlign = 'left';
+    ctx.fillStyle = C['--muted']; ctx.textAlign = 'left';
     ctx.fillText('beyond 50 mL burette', X(BURETTE_MAX) + 4, h - M.b - 6);
   }
 
   /* titration curve */
-  ctx.strokeStyle = C['--chart-curve']; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.strokeStyle = C['--series-curve']; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
   ctx.beginPath();
   S.curve.forEach(([v, p], i) => i ? ctx.lineTo(X(v), Y(p)) : ctx.moveTo(X(v), Y(p)));
   ctx.stroke();
 
   /* labelled points: dot in the point's colour, ink ring, label on a surface-coloured plate with a colour tab */
-  ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'left';
+  ctx.font = '12px ' + C['--font-body']; ctx.textAlign = 'left';
   for (const m of marks()) {
     const p = exactPH(m.v), px = X(m.v), py = Y(p);
     const calcPoint = m.key !== 'three', r = calcPoint ? 7 : 5;
@@ -992,12 +715,13 @@ document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click'
  * ============================================================ */
 (function () {
   var THEME_KEY = 'theme', btn = document.getElementById('theme-toggle');
-  function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+  function isDark() { var a = document.documentElement.getAttribute('data-theme'); return a ? a === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches); }
   function icon() { btn.textContent = isDark() ? '☀️' : '🌙'; }
   icon();
+  if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { icon(); readTheme(); drawChart(); });
   btn.addEventListener('click', function () {
     if (isDark()) {
-      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.setAttribute('data-theme', 'light');
       try { localStorage.setItem(THEME_KEY, 'light'); } catch (e) {}
     } else {
       document.documentElement.setAttribute('data-theme', 'dark');

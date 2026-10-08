@@ -135,7 +135,10 @@
   const THEME_KEY = 'theme';
 
   function currentIsDark() {
-    return document.documentElement.getAttribute('data-theme') === 'dark';
+    const t = document.documentElement.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
 
   function updateThemeToggleIcon(btn) {
@@ -146,9 +149,10 @@
     const btn = document.getElementById('theme-toggle');
     if (!btn) return;
     updateThemeToggleIcon(btn);
+    if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => updateThemeToggleIcon(btn));
     btn.addEventListener('click', () => {
       if (currentIsDark()) {
-        document.documentElement.removeAttribute('data-theme');
+        document.documentElement.setAttribute('data-theme', 'light');
         try {
           localStorage.setItem(THEME_KEY, 'light');
         } catch (err) {
@@ -315,10 +319,10 @@
     const specX1 = 560;
     const screenX = 830;
 
-    svg.appendChild(svgEl('rect', { x: 0, y: 0, width: W, height: H, rx: 14, fill: '#0a1c22' }));
+    svg.appendChild(svgEl('rect', { x: 0, y: 0, width: W, height: H, rx: 14, style: 'fill:var(--stage)' }));
 
-    const halo = isWhite() ? '#fff3d0' : currentSourceData().tubeGlow;
-    const core = isWhite() ? '#fffaf0' : currentSourceData().tubeColor;
+    const halo = isWhite() ? 'var(--glow-white-halo)' : currentSourceData().tubeGlow;
+    const core = isWhite() ? 'var(--glow-white-core)' : currentSourceData().tubeColor;
     const glowOpacity = state.powered ? 0.85 : 0.08;
 
     const bloomTarget = glowOpacity * 0.9;
@@ -327,7 +331,7 @@
       cy: sourceCY,
       rx: 90,
       ry: 90,
-      fill: halo,
+      style: 'fill:' + halo,
       opacity: animate ? 0 : bloomTarget,
       filter: `url(#blurWide-${uid})`,
     });
@@ -340,7 +344,7 @@
         cx: sourceCX,
         cy: sourceCY,
         r: 46,
-        fill: core,
+        style: 'fill:' + core,
         opacity: animate ? 0 : bulbGlowTarget,
         filter: `url(#blurSoft-${uid})`,
       });
@@ -352,20 +356,19 @@
           cx: sourceCX,
           cy: sourceCY,
           r: 32,
-          fill: state.powered ? '#fffef2' : '#3a3a30',
-          stroke: 'rgba(255,255,255,0.5)',
+          style: state.powered ? 'fill:var(--bulb-on);stroke:var(--stage-line)' : 'fill:var(--bulb-off);stroke:var(--stage-line)',
           'stroke-width': 2,
         })
       );
       const fil = svgEl('polyline', {
         points: `${sourceCX - 14},${sourceCY + 8} ${sourceCX - 6},${sourceCY - 8} ${sourceCX + 2},${sourceCY + 8} ${sourceCX + 10},${sourceCY - 8}`,
         fill: 'none',
-        stroke: state.powered ? '#d9a441' : '#555',
+        style: state.powered ? 'stroke:var(--filament-on)' : 'stroke:var(--filament-off)',
         'stroke-width': 2,
       });
       svg.appendChild(fil);
       svg.appendChild(
-        svgEl('rect', { x: sourceCX - 14, y: sourceCY + 32, width: 28, height: 14, fill: '#8a8a8a', rx: 2 })
+        svgEl('rect', { x: sourceCX - 14, y: sourceCY + 32, width: 28, height: 14, style: 'fill:var(--stage-hardware)', rx: 2 })
       );
     } else {
       const tubeTop = sourceCY - 90;
@@ -377,8 +380,7 @@
           width: 52,
           height: tubeH,
           rx: 26,
-          fill: 'rgba(255,255,255,0.04)',
-          stroke: 'rgba(255,255,255,0.35)',
+          style: 'fill:var(--stage-fill);stroke:var(--stage-line)',
           'stroke-width': 2,
         })
       );
@@ -393,7 +395,7 @@
         y: tubeTop,
         width: 52,
         height: tubeH,
-        fill: halo,
+        style: 'fill:' + halo,
         opacity: animate ? 0 : glowOpacity,
         filter: `url(#blurSoft-${uid})`,
       });
@@ -401,8 +403,8 @@
       if (animate) animateOpacityIn(tubeFill, glowOpacity, 0, SEQ_GLOW_MS);
       svg.appendChild(g);
 
-      svg.appendChild(svgEl('circle', { cx: sourceCX, cy: tubeTop - 6, r: 5, fill: '#7d8a8f' }));
-      svg.appendChild(svgEl('circle', { cx: sourceCX, cy: tubeTop + tubeH + 6, r: 5, fill: '#7d8a8f' }));
+      svg.appendChild(svgEl('circle', { cx: sourceCX, cy: tubeTop - 6, r: 5, style: 'fill:var(--stage-hardware)' }));
+      svg.appendChild(svgEl('circle', { cx: sourceCX, cy: tubeTop + tubeH + 6, r: 5, style: 'fill:var(--stage-hardware)' }));
     }
 
     /* Phase 2 — rays extend from the source to the lens (starts after glow). */
@@ -413,7 +415,7 @@
         y1: sourceCY + offset,
         x2: lensX,
         y2: sourceCY,
-        stroke: isWhite() ? '#fff6de' : core,
+        style: 'stroke:' + (isWhite() ? 'var(--glow-white-ray)' : core),
         'stroke-width': 1.4,
         opacity: rayOpacity,
       });
@@ -427,8 +429,7 @@
         cy: sourceCY,
         rx: 8,
         ry: 46,
-        fill: 'rgba(160,220,230,0.18)',
-        stroke: 'rgba(160,220,230,0.6)',
+        style: 'fill:var(--stage-lens-fill);stroke:var(--stage-lens-line)',
         'stroke-width': 1.5,
       })
     );
@@ -439,7 +440,7 @@
       y1: sourceCY,
       x2: specX0 + 40,
       y2: sourceCY,
-      stroke: isWhite() ? '#fff6de' : core,
+      style: 'stroke:' + (isWhite() ? 'var(--glow-white-ray)' : core),
       'stroke-width': 3,
       opacity: state.powered ? 0.9 : 0.08,
     });
@@ -453,8 +454,7 @@
         width: specX1 - specX0,
         height: 120,
         rx: 8,
-        fill: 'rgba(255,255,255,0.05)',
-        stroke: 'rgba(255,255,255,0.4)',
+        style: 'fill:var(--stage-fill);stroke:var(--stage-line)',
         'stroke-width': 1.5,
       })
     );
@@ -462,9 +462,9 @@
       x: (specX0 + specX1) / 2,
       y: sourceCY - 70,
       'text-anchor': 'middle',
-      fill: '#bdf0f6',
+      style: 'fill:var(--stage-ink)',
       'font-size': 12,
-      'font-family': 'var(--mono, monospace)',
+      'font-family': 'var(--font-mono, monospace)',
       'letter-spacing': '0.08em',
     });
     specLabel.textContent = 'SPECTROMETER';
@@ -478,7 +478,7 @@
           y1: sourceCY - 40,
           x2: gratingX + i * 4 - 10,
           y2: sourceCY + 40,
-          stroke: 'rgba(200,230,235,0.55)',
+          style: 'stroke:var(--stage-lens-line)',
           'stroke-width': 1,
         })
       );
@@ -533,7 +533,7 @@
         y: fanTopY - 10,
         width: 14,
         height: fanBottomY - fanTopY + 20,
-        fill: '#f4f8fa',
+        style: 'fill:var(--stage-screen)',
         opacity: 0.9,
         rx: 3,
       })
@@ -544,8 +544,8 @@
         x: W / 2,
         y: H - 14,
         'text-anchor': 'middle',
-        fill: '#8a9aa8',
-        'font-size': 10,
+        style: 'fill:var(--stage-muted)',
+        'font-size': 12,
         'letter-spacing': '0.12em',
       });
       offLabel.textContent = 'SOURCE OFF \u00B7 FLIP THE SWITCH TO BEGIN';
@@ -562,14 +562,14 @@
     const H = RESULT_VIEWBOX_H;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-    svg.appendChild(svgEl('rect', { x: 0, y: 0, width: W, height: H, rx: 10, fill: '#050505' }));
+    svg.appendChild(svgEl('rect', { x: 0, y: 0, width: W, height: H, rx: 10, style: 'fill:var(--stage-deep)' }));
 
     if (!state.powered) {
       const t = svgEl('text', {
         x: W / 2,
         y: H / 2 + 4,
         'text-anchor': 'middle',
-        fill: '#8a9aa8',
+        style: 'fill:var(--stage-muted)',
         'font-size': 12,
         'letter-spacing': '0.1em',
       });
@@ -760,7 +760,7 @@
         y: y + 4,
         'text-anchor': 'end',
         'font-size': 12,
-        'font-family': 'var(--mono, monospace)',
+        'font-family': 'var(--font-mono, monospace)',
         class: 'svg-n',
       });
       nLabel.textContent = 'n=' + lvl.n;
@@ -770,7 +770,7 @@
         x: ENERGY_CHART.x1 + 12,
         y: y + 4,
         'font-size': 10.5,
-        'font-family': 'var(--mono, monospace)',
+        'font-family': 'var(--font-mono, monospace)',
         class: 'svg-ev',
       });
       evLabel.textContent = lvl.energyEv.toFixed(2) + ' eV';
@@ -793,7 +793,7 @@
     return svgEl('path', {
       d: points.join(' '),
       fill: 'none',
-      stroke: color,
+      style: 'stroke:' + color,
       'stroke-width': 2.5,
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
@@ -826,8 +826,7 @@
       cx: x,
       cy: yInitial,
       r: 7,
-      fill: '#fff',
-      stroke: color,
+      style: 'fill:var(--electron);stroke:' + color,
       'stroke-width': 2.5,
       class: 'js-electron electron-vibrate',
     });
@@ -897,7 +896,7 @@
           x: ATOM_VIEW.cx + r + 5,
           y: ATOM_VIEW.cy + 4,
           'font-size': 10.5,
-          'font-family': 'var(--mono, monospace)',
+          'font-family': 'var(--font-mono, monospace)',
           class: 'svg-ev',
         });
         lbl.textContent = 'n=' + n;
@@ -906,14 +905,14 @@
     }
 
     /* proton */
-    svg.appendChild(svgEl('circle', { cx: ATOM_VIEW.cx, cy: ATOM_VIEW.cy, r: 5, fill: '#c0392b' }));
+    svg.appendChild(svgEl('circle', { cx: ATOM_VIEW.cx, cy: ATOM_VIEW.cy, r: 5, style: 'fill:var(--proton)' }));
     const plus = svgEl('text', {
       x: ATOM_VIEW.cx,
       y: ATOM_VIEW.cy + 3.5,
       'text-anchor': 'middle',
-      'font-size': 9,
-      fill: '#fff',
-      'font-weight': 'bold',
+      'font-size': 11,
+      style: 'fill:var(--proton-ink)',
+      'font-weight': '600',
     });
     plus.textContent = '+';
     svg.appendChild(plus);
@@ -940,8 +939,7 @@
       cx: xInitial,
       cy: yInitial,
       r: 6,
-      fill: '#fff',
-      stroke: color,
+      style: 'fill:var(--electron);stroke:' + color,
       'stroke-width': 2.5,
       class: 'js-electron electron-vibrate',
     });
@@ -988,7 +986,7 @@
       seg.style.left = startPct + '%';
       seg.style.width = Math.max(0, endPct - startPct) + '%';
       if (band.name === 'Visible') {
-        seg.style.background = 'linear-gradient(90deg, #6d4bb0, #4f63c4, #2f9e6f, #d99a2b, #d13b52)';
+        seg.style.background = 'var(--em-visible-gradient)';
       } else {
         seg.style.background = band.color;
       }

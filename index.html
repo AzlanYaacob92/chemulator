@@ -6,20 +6,11 @@
   <title>Chemculator &middot; Atomic Emission Spectra</title>
   <meta name="description" content="Chemculator: follow light from a glowing gas tube through a spectrometer onto a screen and see why atomic emission lines show that electron energies are quantised." />
 
-  <!-- Flash-free theme init: runs before the stylesheet is parsed so returning
-       visitors never see a light-mode flash before dark mode applies. Same key
-       ("theme") and values as the Chemculator hub, so the choice carries across pages. -->
   <script>
-  (function () {
-    try {
-      var saved = localStorage.getItem('theme');
-      if (saved === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
-    } catch (e) { /* localStorage unavailable: fall back to light mode */ }
-  })();
-  </script>
+try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.documentElement.setAttribute('data-theme', s);}catch(e){}
+</script>
 
+  <link rel="stylesheet" href="design-system.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
