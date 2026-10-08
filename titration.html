@@ -22,6 +22,8 @@
   /* ---------- header + controls ---------- */
   .top { padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
   .brand h1 { font-size: 1.15rem; margin: 0; line-height: 1.2; }
+  .brand a { color: inherit; text-decoration: none; }
+  .brand a:hover { text-decoration: underline; }
   .brand p { margin: 0; font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
   .ctl { display: flex; align-items: center; gap: 8px; }
   .ctl label { font-weight: 600; font-size: .8rem; white-space: nowrap; }
@@ -95,7 +97,7 @@
 <div class="page">
 
   <section class="card top">
-    <div class="brand"><p>Chemulator</p><h1>Acid–Base Titration</h1></div>
+    <div class="brand"><p><a href="index.html">&larr; Chemulator: Atomic Emission Spectra</a></p><h1>Acid–Base Titration</h1></div>
     <div class="sep"></div>
     <div class="ctl"><label for="acid">Acid (flask, 25 mL)</label><select id="acid"></select></div>
     <div class="ctl"><label for="cA">Conc.</label><input type="range" id="cAr" min="0.01" max="1" step="0.01"><input type="number" id="cA" min="0.001" max="2" step="0.01"><span>M</span></div>
