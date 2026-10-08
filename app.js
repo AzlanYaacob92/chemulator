@@ -30,68 +30,22 @@
     while (node.firstChild) node.removeChild(node.firstChild);
   }
 
-  /* ---------------- animation helpers ---------------- */
-  /* jsdom (our DOM test harness) implements neither requestAnimationFrame nor
-   * SVGGeometryElement.getTotalLength()/real layout, so these helpers degrade
-   * gracefully when those APIs are missing — real browsers animate, jsdom just
-   * ends up at the final state. */
-  const raf =
-    typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
-      ? window.requestAnimationFrame.bind(window)
-      : function (cb) {
-          setTimeout(cb, 16);
-        };
+  /* ---------------- animation helpers ----------------
+   * Every animation goes through motion.js (window.Motion), which takes its
+   * easing from the design-system tokens, lands on the final state at once
+   * under reduced motion, and does the same where the Web Animations API is
+   * missing (jsdom, our DOM test harness). */
+  const Motion = window.Motion;
 
   function animateOpacityIn(el, targetOpacity, delayMs, durationMs) {
     if (!el) return;
-    el.style.opacity = '0';
-    animateOpacityTo(el, targetOpacity, delayMs, durationMs);
-  }
-
-  function animateOpacityTo(el, targetOpacity, delayMs, durationMs) {
-    if (!el) return;
-    el.style.transition = 'none';
-    setTimeout(() => {
-      el.style.transition = `opacity ${durationMs}ms ease-out`;
-      raf(() => {
-        el.style.opacity = String(targetOpacity);
-      });
-    }, delayMs);
-  }
-
-  function fadeOut(el, delayMs, durationMs) {
-    animateOpacityTo(el, 0, delayMs, durationMs);
+    el.style.opacity = String(targetOpacity);
+    Motion.animate(el, [{ opacity: 0 }, { opacity: targetOpacity }],
+      { delay: delayMs, duration: durationMs, easing: Motion.easeMove() });
   }
 
   function animateDrawIn(el, delayMs, durationMs) {
-    let length = null;
-    try {
-      if (typeof el.getTotalLength === 'function') length = el.getTotalLength();
-    } catch (err) {
-      length = null;
-    }
-    if (!length || !isFinite(length) || length <= 0) return;
-
-    el.style.strokeDasharray = String(length);
-    el.style.strokeDashoffset = String(length);
-    el.style.transition = 'none';
-    /* Force the browser to commit the fully-hidden initial state before the
-     * transition begins. Without this, style recalc can batch the initial and
-     * final dash offsets into one frame and the stroke appears already fully
-     * materialised instead of extending in. */
-    try {
-      void el.getBoundingClientRect();
-    } catch (err) {
-      /* jsdom: no layout — the fallback below still ends at the final state */
-    }
-    setTimeout(() => {
-      raf(() => {
-        raf(() => {
-          el.style.transition = `stroke-dashoffset ${durationMs}ms ease-out`;
-          el.style.strokeDashoffset = '0';
-        });
-      });
-    }, delayMs);
+    Motion.draw(el, { delay: delayMs, duration: durationMs });
   }
 
   /* Strictly sequential power-on timeline. Each phase begins only after the
@@ -880,17 +834,8 @@
       svg.appendChild(photon);
       animateDrawIn(photon, 0, ANIM_ELECTRON_FALL_MS);
 
-      electron.style.transition = 'none';
       electron.style.cy = yInitial + 'px';
-      const t2 = setTimeout(() => {
-        if (token !== transitionToken) return;
-        electron.style.transition = `cy ${ANIM_ELECTRON_FALL_MS}ms var(--ease-buttery, ease-out)`;
-        raf(() => {
-          if (token !== transitionToken) return;
-          electron.style.cy = yFinal + 'px';
-        });
-      }, 16);
-      activeTransitionTimeouts.push(t2);
+      Motion.to(electron, { cy: yFinal + 'px' }, { duration: ANIM_ELECTRON_FALL_MS });
     }, ANIM_VIBRATE_MS);
     activeTransitionTimeouts.push(t1);
   }
@@ -1001,19 +946,9 @@
       svg.appendChild(photon);
       animateDrawIn(photon, 0, ANIM_ELECTRON_FALL_MS);
 
-      electron.style.transition = 'none';
       electron.style.cx = xInitial + 'px';
       electron.style.cy = yInitial + 'px';
-      const t2 = setTimeout(() => {
-        if (token !== transitionToken) return;
-        electron.style.transition = `cx ${ANIM_ELECTRON_FALL_MS}ms var(--ease-buttery, ease-out), cy ${ANIM_ELECTRON_FALL_MS}ms var(--ease-buttery, ease-out)`;
-        raf(() => {
-          if (token !== transitionToken) return;
-          electron.style.cx = xFinal + 'px';
-          electron.style.cy = yFinal + 'px';
-        });
-      }, 16);
-      activeTransitionTimeouts.push(t2);
+      Motion.to(electron, { cx: xFinal + 'px', cy: yFinal + 'px' }, { duration: ANIM_ELECTRON_FALL_MS });
     }, ANIM_VIBRATE_MS);
     activeTransitionTimeouts.push(t1);
   }
@@ -1147,7 +1082,8 @@
   /* ---------------- render everything ---------------- */
   function render(options) {
     const opts = options || {};
-    const playSequence = Boolean(opts.playSequence) && state.powered;
+    /* with reduced motion there is nothing to watch, so show the result at once */
+    const playSequence = Boolean(opts.playSequence) && state.powered && !Motion.reduced();
 
     clearPendingTimeouts();
     updatePickerHighlight();
