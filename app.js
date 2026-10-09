@@ -1890,6 +1890,96 @@
     }
   }
 
+  /* ---------------- EM comparison loupe ----------------
+   * Hovering the full-spectrum bar or the line strip pops up a magnified copy of the
+   * stretch under the cursor (3x wide, 2.2x tall), with the wavelength it points at. */
+  function initEmLoupe() {
+    const wrap = document.getElementById('em-reveal-wrap');
+    const bar = document.getElementById('em-bar');
+    const strip = document.getElementById('em-line-strip');
+    const targets = [document.getElementById('em-bar-wrap'), strip];
+    if (!wrap || !bar || !strip || !targets[0]) return;
+    const ZX = 3;
+    const ZY = 2.2;
+    const LW = 260;
+    const LH = Math.round((44 + 36) * ZY);
+    let loupe = null;
+    let inner = null;
+    let readout = null;
+    let source = null;
+
+    function nmLabel(nm) {
+      if (nm >= 1e6) return (nm / 1e6).toPrecision(3) + ' mm';
+      if (nm >= 1e4) return (nm / 1e3).toPrecision(3) + ' \u00B5m';
+      if (nm >= 1) return nm.toPrecision(3) + ' nm';
+      return (nm * 1e3).toPrecision(3) + ' pm';
+    }
+
+    function percentToNm(pct) {
+      const logMax = Math.log10(Chemulator.EM_AXIS_MAX_M);
+      const logMin = Math.log10(Chemulator.EM_AXIS_MIN_M);
+      return Math.pow(10, logMax - (pct / 100) * (logMax - logMin)) * 1e9;
+    }
+
+    function copyOf(node) {
+      const c = node.cloneNode(true);
+      c.removeAttribute('id');
+      c.querySelectorAll('[title]').forEach((el) => el.removeAttribute('title'));
+      return c;
+    }
+
+    function build(width) {
+      loupe = document.createElement('div');
+      loupe.className = 'em-loupe';
+      loupe.setAttribute('aria-hidden', 'true');
+      inner = document.createElement('div');
+      inner.className = 'em-loupe-inner';
+      inner.style.width = width + 'px';
+      inner.appendChild(copyOf(bar));
+      inner.appendChild(copyOf(strip));
+      const guide = document.createElement('i');
+      guide.className = 'em-loupe-guide';
+      readout = document.createElement('span');
+      readout.className = 'em-loupe-read';
+      loupe.appendChild(inner);
+      loupe.appendChild(guide);
+      loupe.appendChild(readout);
+      wrap.appendChild(loupe);
+    }
+
+    function hide() {
+      if (loupe) loupe.remove();
+      loupe = inner = readout = source = null;
+    }
+
+    function move(e) {
+      if (!state.emVisible) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      if (rect.width < 1) return;
+      const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left));
+      if (!loupe || source !== e.currentTarget) {
+        hide();
+        source = e.currentTarget;
+        build(rect.width);
+      }
+      inner.style.transform = `translate(${LW / 2 - ZX * x}px, 0) scale(${ZX}, ${ZY})`;
+      readout.textContent = nmLabel(percentToNm((x / rect.width) * 100));
+      const wrapRect = wrap.getBoundingClientRect();
+      const barRect = targets[0].getBoundingClientRect();
+      const left = Math.min(wrapRect.width - LW, Math.max(0, e.clientX - wrapRect.left - LW / 2));
+      /* above the bar when there is room in the viewport, otherwise below the strip */
+      const above = barRect.top - LH - 10 > 8;
+      const top = above ? barRect.top - wrapRect.top - LH - 10 : strip.getBoundingClientRect().bottom - wrapRect.top + 10;
+      loupe.style.left = left + 'px';
+      loupe.style.top = top + 'px';
+    }
+
+    targets.forEach((t) => {
+      t.addEventListener('pointermove', move);
+      t.addEventListener('pointerleave', hide);
+    });
+  }
+
   function initEmToggle() {
     const btn = document.getElementById('em-toggle');
     btn.addEventListener('click', () => {
@@ -2204,6 +2294,7 @@
     buildViewerTray();
     initPowerToggle();
     initEmToggle();
+    initEmLoupe();
     initModeToggle();
     render();
   }

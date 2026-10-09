@@ -467,6 +467,7 @@ h2 { margin: 0 0 var(--sp-2); }
 .result-controls { margin-top: var(--sp-4); }
 
 .em-reveal-wrap {
+  position: relative;
   display: none;
   margin-top: var(--sp-4);
   padding: var(--sp-4);
@@ -1300,3 +1301,25 @@ html:has(.tit) { height: 100%; }
   .theme-toggle:hover,
   .tit .page button:active { transform: none !important; }
 }
+
+/* ---------------- EM comparison loupe ---------------- */
+.em-loupe {
+  position: absolute;
+  z-index: 5;
+  width: 260px;
+  height: 176px;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--stage-deep);
+  border: 2px solid var(--primary);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+}
+.em-loupe-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.em-loupe-guide { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--primary); opacity: .55; }
+.em-loupe-read {
+  position: absolute; right: 6px; bottom: 6px; padding: 1px 7px;
+  font: var(--w-semi) 12px/1.4 var(--font-mono, monospace);
+  color: #fff; background: rgba(8, 6, 16, .72); border-radius: var(--r-pill);
+}
+.em-loupe .em-band-label { display: none; }
