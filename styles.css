@@ -722,6 +722,7 @@ body.emission .tile-spectrum-rainbow { inset: 2px; }
   border-radius: var(--r-md);
 }
 .emission .panel-empty[hidden] { display: none; }
+.emission .panel[hidden] { display: none; }
 .emission .stage-hint { margin: var(--sp-2) 0 0; flex: none; }
 .emission .stage-hint:empty { display: none; }
 

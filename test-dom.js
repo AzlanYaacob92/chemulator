@@ -123,8 +123,8 @@ function wait(ms) {
   click(doc.querySelectorAll('.source-picker .sig-card')[1]);
   await wait(20);
   assert($('source-symbol').textContent === 'He', 'Choosing helium updates the headline');
-  assert($('transition-panel').hidden && !$('transition-empty').hidden, 'Changing source closes the transition panel');
-  assert($('transition-empty').textContent.includes('hydrogen only'), 'The empty state explains that diagrams are for hydrogen only');
+  assert($('transition-panel').hidden, 'Changing source closes the transition panel');
+  assert($('transition-card').hidden, 'The Transition diagram card is removed for non-hydrogen sources');
   assert(!$('result-svg').classList.contains('visible'), 'The spectrum waits for the new sequence');
   await wait(seq.SEQ_RESULT_DELAY_MS + 150);
   assert($('result-svg').classList.contains('visible'), 'The helium spectrum arrives');
