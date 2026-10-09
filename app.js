@@ -206,6 +206,7 @@
   function selectSource(code) {
     if (code === state.source) return;
     state.source = code;
+    syncTransitionCard();
     closeTransitionPanel();
     /* a new source restarts the sequence (when on); render() handles a sequence in flight */
     render({ playSequence: state.powered });
@@ -660,16 +661,21 @@
     });
   }
 
+  /* The Transition diagram card exists for hydrogen only: for every other source
+   * the whole card is removed and the other two cards take its height. */
+  function syncTransitionCard() {
+    const card = document.getElementById('transition-card');
+    if (card) card.hidden = !isHydrogen();
+  }
+
   /* Empty-state of the Transition diagram card (hydrogen only). */
   function updateTransitionEmpty() {
+    syncTransitionCard();
     const empty = document.getElementById('transition-empty');
     if (!empty) return;
     /* stays out of the way until a closing panel has finished fading */
     const panel = document.getElementById('transition-panel');
     empty.hidden = Boolean(state.selectedLine) || Boolean(panel && !panel.hidden);
-    empty.textContent = isHydrogen()
-      ? 'Select a spectral line to see the electron transition.'
-      : 'Transition diagrams are available for hydrogen only. Choose hydrogen as the light source to explore the electron transitions behind its lines.';
   }
 
   function updateTransitionPanelText() {
