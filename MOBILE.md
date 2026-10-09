@@ -32,7 +32,8 @@ npm run cap:sync    # just rebuild www and sync to both platforms
 ### Make an installable APK (free, no store needed)
 
 Android Studio: **Build > Build Bundle(s) / APK(s) > Build APK(s)**. The debug APK is in
-`android/app/build/outputs/apk/debug/`. Send it to anyone; they enable "install unknown apps" and open it.
+`%LOCALAPPDATA%\chemculator-gradle\app\outputs\apk\debug\` (see "Why the build folder is not in the project"
+below). Send it to anyone; they enable "install unknown apps" and open it.
 
 ## Publishing
 
@@ -56,3 +57,12 @@ node scripts/make-icons.js
 npx capacitor-assets generate --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#0f1420' --splashBackgroundColor '#F6F9FF' --splashBackgroundColorDark '#08224A'
 rm -rf icons   # unused PWA output
 ```
+
+## Why the build folder is not in the project
+
+This project sits inside OneDrive. OneDrive turns files in synced folders into cloud-only placeholders, and Gradle
+cannot delete those, so builds failed with `AccessDeniedException ... android\app\build\intermediates\...`.
+`android/build.gradle` therefore sends every Gradle `build` folder to `%LOCALAPPDATA%\chemculator-gradle`
+(set the `CHEMCULATOR_BUILD_DIR` environment variable to use another folder; on macOS/Linux the normal
+`android/**/build` folders are used). If the error ever returns, stop Gradle (`android\gradlew.bat --stop`) and
+delete `android\.gradle`, which still lives in the project.

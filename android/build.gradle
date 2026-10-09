@@ -17,10 +17,21 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// Keep Gradle's build output out of OneDrive. OneDrive turns files in synced folders into cloud-only
+// placeholders, and Gradle cannot delete those (AccessDeniedException while cleaning build/intermediates).
+// Output goes to %LOCALAPPDATA%\chemculator-gradle on Windows; set CHEMCULATOR_BUILD_DIR to use another
+// folder. Where neither exists (macOS/Linux) the default android/**/build folders are used.
+def chemculatorOut = System.getenv('CHEMCULATOR_BUILD_DIR') ?:
+        (System.getenv('LOCALAPPDATA') ? System.getenv('LOCALAPPDATA') + '/chemculator-gradle' : null)
+
 allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+    if (chemculatorOut) {
+        def sub = project == rootProject ? 'root' : project.path.substring(1).replace(':', '_')
+        project.layout.buildDirectory.set(new File(chemculatorOut, sub))
     }
 }
 
