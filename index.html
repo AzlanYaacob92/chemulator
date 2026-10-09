@@ -69,13 +69,23 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
 
       <!-- Card 1: Experimental setup -->
       <section class="card panel panel--setup" id="setup-card" aria-labelledby="setup-heading">
-        <h2 id="setup-heading">Experimental setup</h2>
+        <div class="setup-head">
+          <h2 id="setup-heading">Experimental setup</h2>
+          <!-- hydrogen only: which series the tube emits -->
+          <div class="seg series-toggle" id="series-toggle" role="group" aria-label="Hydrogen series" hidden></div>
+        </div>
         <div class="panel-body">
           <div class="apparatus-wrap" id="apparatus-wrap">
             <svg id="apparatus-svg" class="stage-svg" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gas tube, lens, spectrometer and screen"></svg>
+            <!-- hydrogen UV / IR series: the plates that make the lines visible live here -->
+            <div class="viewer-tray" id="viewer-tray" role="group" aria-label="Viewer tray" hidden>
+              <p class="tray-hint" id="tray-hint"></p>
+              <div class="tray-slots" id="tray-slots"></div>
+            </div>
           </div>
         </div>
         <p class="stage-hint" id="setup-hint">Flip the power switch on to begin.</p>
+        <p class="sr-only" id="viewer-status" role="status" aria-live="polite"></p>
       </section>
 
       <!-- Card 2: Line spectrum -->
@@ -106,6 +116,7 @@ try{var s=localStorage.getItem('theme'); if(s==='dark'||s==='light') document.do
               </div>
               <p class="em-strip-label" id="em-line-strip-label">This source&rsquo;s line spectrum, on the same axis</p>
               <div id="em-line-strip" class="em-line-strip"></div>
+              <div id="em-legend" class="em-legend" hidden></div>
             </div>
           </div>
         </div>

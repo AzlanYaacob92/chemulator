@@ -109,15 +109,20 @@ const WHITE_LIGHT = {
     'A hot filament (or the Sun) emits every visible wavelength at once. The spectrometer spreads it into a continuous rainbow with no gaps.',
 };
 
-/* ---------- Bohr model: Balmer series detail for hydrogen ---------- */
+/* ---------- Bohr model: the five hydrogen series ---------- */
 /* Rydberg constant, m^-1 */
 const RYDBERG_CONSTANT = 1.097373e7;
 
-/* 1/lambda = R * (1/nf^2 - 1/ni^2); returns wavelength in nm */
-function balmerWavelengthNm(nInitial, nFinal = 2) {
+/* 1/lambda = R * (1/nf^2 - 1/ni^2); returns the (vacuum) wavelength in nm */
+function transitionWavelengthNm(nInitial, nFinal) {
   const invLambda = RYDBERG_CONSTANT * (1 / (nFinal * nFinal) - 1 / (nInitial * nInitial));
   const lambdaMetres = 1 / invLambda;
   return lambdaMetres * 1e9;
+}
+
+/* the original, Balmer-flavoured name: n_final still defaults to 2 */
+function balmerWavelengthNm(nInitial, nFinal = 2) {
+  return transitionWavelengthNm(nInitial, nFinal);
 }
 
 /* Energy of the transition in eV: E = 1240 / lambda(nm), using hc = 1240 eV*nm */
@@ -125,15 +130,105 @@ function transitionEnergyEv(wavelengthNm) {
   return 1240 / wavelengthNm;
 }
 
-const BALMER_SERIES = [3, 4, 5, 6].map((nInitial) => {
-  const wavelength = balmerWavelengthNm(nInitial);
+/* Bohr level energy, E_n = -13.6 / n^2 eV */
+const LEVEL_ENERGY_SCALE_EV = 13.6;
+function levelEnergyEv(n) {
+  return -LEVEL_ENERGY_SCALE_EV / (n * n);
+}
+
+/* Which part of the spectrum a wavelength falls in, for the eye: 'uv' | 'visible' | 'ir' */
+function lightBand(wavelengthNm) {
+  if (wavelengthNm < VISIBLE_MIN_NM) return 'uv';
+  if (wavelengthNm > VISIBLE_MAX_NM) return 'ir';
+  return 'visible';
+}
+
+/* Lyman, Balmer, Paschen, Brackett, Pfund: four lines each (n_i = n_f + 1 ... n_f + 4),
+ * plus the series limit (n_i -> infinity), where the lines crowd together. */
+const SERIES_DEFS = [
+  { id: 'lyman', name: 'Lyman', nFinal: 1, band: 'uv', bandLabel: 'UV', prefix: 'Ly' },
+  { id: 'balmer', name: 'Balmer', nFinal: 2, band: 'visible', bandLabel: 'Visible', prefix: 'H' },
+  { id: 'paschen', name: 'Paschen', nFinal: 3, band: 'ir', bandLabel: 'IR', prefix: 'P' },
+  { id: 'brackett', name: 'Brackett', nFinal: 4, band: 'ir', bandLabel: 'IR', prefix: 'Br' },
+  { id: 'pfund', name: 'Pfund', nFinal: 5, band: 'ir', bandLabel: 'IR', prefix: 'Pf' },
+];
+const GREEK_LETTERS = ['\u03B1', '\u03B2', '\u03B3', '\u03B4'];
+const BAND_WORDS = { uv: 'ultraviolet', visible: 'visible', ir: 'infrared' };
+
+const HYDROGEN_SERIES = SERIES_DEFS.map((def) => {
+  const lines = [0, 1, 2, 3].map((i) => {
+    const nInitial = def.nFinal + 1 + i;
+    const wavelength = transitionWavelengthNm(nInitial, def.nFinal);
+    return {
+      seriesId: def.id,
+      nInitial,
+      nFinal: def.nFinal,
+      wavelength,
+      /* the photon carries exactly the gap between the two levels (Lyman alpha = 10.20 eV;
+       * hc/lambda with hc = 1240 would print 10.21), so the panel agrees with the level diagram */
+      energyEv: levelEnergyEv(nInitial) - levelEnergyEv(def.nFinal),
+      label: def.prefix + GREEK_LETTERS[i],
+    };
+  });
   return {
-    nInitial,
-    nFinal: 2,
-    wavelength,
-    energyEv: transitionEnergyEv(wavelength),
+    id: def.id,
+    name: def.name,
+    nFinal: def.nFinal,
+    band: def.band,
+    bandLabel: def.bandLabel,
+    limitNm: transitionWavelengthNm(Infinity, def.nFinal),
+    lines,
+    description:
+      def.id === 'balmer'
+        ? GAS_ELEMENTS.H.description
+        : `${def.name} series: ${BAND_WORDS[def.band]} lines, electron falls to n = ${def.nFinal}.`,
   };
 });
+
+/* Balmer chips, rays and the strip keep the observed (air) wavelengths this page has always
+ * shown (656.3 nm ...); `wavelength` stays the Rydberg value the energies are computed from. */
+HYDROGEN_SERIES.find((s) => s.id === 'balmer').lines.forEach((line, i) => {
+  line.observedNm = GAS_ELEMENTS.H.lines[i].wavelength;
+});
+
+/* kept for compatibility: the original Balmer-only list, now the same line objects */
+const BALMER_SERIES = HYDROGEN_SERIES.find((s) => s.id === 'balmer').lines;
+
+/* ---------- Seeing the invisible: a UV screen and an IR viewer ---------- */
+/* One FALSE colour per device: a fluorescent screen glows the same green and an IR viewer the
+ * same amber whatever the wavelength, so the glow says WHERE a line falls, never what colour it is.
+ * Both are chosen apart from the visible rainbow lines, the pink tube and each other. */
+const VIEWERS = {
+  uv: { id: 'uv', name: 'UV screen', handles: 'uv', glow: '#8dff4f', tag: 'UV' },
+  ir: { id: 'ir', name: 'IR viewer', handles: 'ir', glow: '#ffb21f', tag: 'IR' },
+};
+const VIEWER_ORDER = ['uv', 'ir'];
+
+/* How a line of this wavelength shows up, given the viewer in the beam (or null):
+ *   the eye sees 380-700 nm as its own colour; a matching viewer shows the line in its glow
+ *   colour; anything else stays dark. */
+function appearance(wavelengthNm, viewerId) {
+  const band = lightBand(wavelengthNm);
+  if (band === 'visible') {
+    return { visible: true, via: 'eye', color: wavelengthToRGB(wavelengthNm) };
+  }
+  const viewer = viewerId ? VIEWERS[viewerId] : null;
+  if (viewer && viewer.handles === band) {
+    return { visible: true, via: 'viewer', color: viewer.glow };
+  }
+  return { visible: false, via: null, color: null };
+}
+
+/* true when this viewer can make that series' lines visible */
+function viewerHandlesSeries(viewerId, series) {
+  const viewer = viewerId ? VIEWERS[viewerId] : null;
+  return Boolean(viewer && series && viewer.handles === series.band);
+}
+
+/* the viewer a series needs, or null when the eye is enough */
+function viewerForSeries(series) {
+  return series && VIEWERS[series.band] ? VIEWERS[series.band] : null;
+}
 
 /* ---------- Wavelength (nm, visible range) -> approximate sRGB colour ---------- */
 /* Standard piecewise approximation used across optics teaching tools. */
@@ -186,6 +281,56 @@ function visiblePercent(wavelengthNm) {
   return Math.min(100, Math.max(0, pct));
 }
 
+/* ---------- A wavelength axis for each hydrogen series ---------- */
+/* Linear in wavelength. Balmer keeps the page's original 380-700 nm screen. Every other series
+ * runs from just below its limit to just above its longest line, so the four lines and the
+ * limit where they crowd together share one strip. */
+
+/* the biggest 1 / 2 / 5 x 10^k step that still leaves at least four intervals */
+function niceTickStep(range, minIntervals = 4) {
+  const target = range / minIntervals;
+  const pow = Math.pow(10, Math.floor(Math.log10(target)));
+  const m = target / pow;
+  return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * pow;
+}
+
+function seriesAxis(series) {
+  let minNm;
+  let maxNm;
+  if (series.band === 'visible') {
+    minNm = VISIBLE_MIN_NM;
+    maxNm = VISIBLE_MAX_NM;
+  } else {
+    const nms = series.lines.map((ln) => ln.wavelength);
+    const lo = Math.min.apply(null, nms.concat(series.limitNm));
+    const hi = Math.max.apply(null, nms);
+    const pad = 0.03 * (hi - lo);
+    minNm = lo - pad;
+    maxNm = hi + pad;
+  }
+  const step = niceTickStep(maxNm - minNm);
+  const ticks = [];
+  for (let v = Math.ceil(minNm / step) * step; v <= maxNm + 1e-9; v += step) {
+    ticks.push(Math.round(v * 1e6) / 1e6);
+  }
+  const limitPct = ((series.limitNm - minNm) / (maxNm - minNm)) * 100;
+  return {
+    minNm,
+    maxNm,
+    ticks,
+    limitNm: series.limitNm,
+    /* null when the limit lies off this axis (Balmer's sits in the UV, left of the screen) */
+    limitPercent: limitPct >= 0 && limitPct <= 100 ? limitPct : null,
+  };
+}
+
+/* Percent position of a wavelength along a series' axis (0 = short end), clamped to 0-100 */
+function axisPercent(series, wavelengthNm) {
+  const axis = seriesAxis(series);
+  const pct = ((wavelengthNm - axis.minNm) / (axis.maxNm - axis.minNm)) * 100;
+  return Math.min(100, Math.max(0, pct));
+}
+
 /* ---------- Full electromagnetic spectrum, for the comparison bar ---------- */
 /* Wavelength band edges in metres, radio (long) -> gamma (short). Log-scale axis. */
 const EM_SPECTRUM_BANDS = [
@@ -215,13 +360,14 @@ function emSpectrumPercentFromNm(wavelengthNm) {
   return emSpectrumPercent(wavelengthNm * 1e-9);
 }
 
-/* Principal energy levels for hydrogen (n=1..6), E_n = -13.6/n^2 eV.
- * Used to draw the Bohr energy-level diagram to scale (levels compress at high n,
- * matching the real convergence toward the ionization limit at E=0). */
-const HYDROGEN_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => ({
+/* Principal energy levels for hydrogen (n=1..9, the highest level any of the five series
+ * starts from), E_n = -13.6/n^2 eV. The levels compress at high n, matching the real
+ * convergence toward the ionization limit (n = infinity) at E = 0. */
+const HYDROGEN_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
   n,
-  energyEv: -13.6 / (n * n),
+  energyEv: levelEnergyEv(n),
 }));
+const HYDROGEN_LIMIT_EV = 0;
 
 /* Bohr orbit radius, r_n proportional to n^2, scaled so n=nMax lands on rMax.
  * Matches the "correct relative spacing" convention used by the NAAP
@@ -237,13 +383,26 @@ const ChemulatorChemistry = {
   GAS_ORDER,
   WHITE_LIGHT,
   RYDBERG_CONSTANT,
+  transitionWavelengthNm,
   balmerWavelengthNm,
   transitionEnergyEv,
+  levelEnergyEv,
+  lightBand,
+  HYDROGEN_SERIES,
   BALMER_SERIES,
+  VIEWERS,
+  VIEWER_ORDER,
+  appearance,
+  viewerHandlesSeries,
+  viewerForSeries,
   HYDROGEN_LEVELS,
+  HYDROGEN_LIMIT_EV,
   bohrOrbitRadius,
   wavelengthToRGB,
   visiblePercent,
+  niceTickStep,
+  seriesAxis,
+  axisPercent,
   EM_SPECTRUM_BANDS,
   EM_AXIS_MAX_M,
   EM_AXIS_MIN_M,

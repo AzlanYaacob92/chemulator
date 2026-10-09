@@ -31,7 +31,7 @@
   --stage-chip:      var(--lav-50);
   --stage-chip-ink:  var(--lav-700);   /* 10.6:1 */
   --stage-chip-on:   #ffffff;
-  --stage-chip-on-ink: var(--ink);
+  --stage-chip-on-ink: #1c1725;      /* dark in BOTH themes: the chip is white, and --ink turns light in dark mode */
 
   /* physical: incandescent source */
   --glow-white-halo: #fff3d0;
@@ -518,6 +518,37 @@ h2 { margin: 0 0 var(--sp-2); }
 }
 .em-marker { position: absolute; top: 0; bottom: 0; width: 3px; transform: translateX(-1.5px); }
 .em-marker-band { position: absolute; top: 0; bottom: 0; opacity: .9; }
+/* hydrogen: the other series sit faint behind; a series nothing is showing is an empty outline */
+.em-marker--faint { width: 2px; opacity: .42; transform: translateX(-1px); }
+.em-marker--hollow {
+  width: 5px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1.5px solid var(--stage-muted);
+  border-radius: 2px;
+  transform: translateX(-2.5px);
+}
+.em-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--sp-4);
+  margin-top: var(--sp-2);
+  font: var(--t-label);
+  color: var(--muted);
+}
+.em-legend[hidden] { display: none; }
+.em-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.em-legend-item.is-current { color: var(--ink); font-weight: var(--w-semi); }
+.em-dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: transparent;
+}
+.em-dot--visible { border-color: transparent; background: var(--em-visible-gradient); }
 
 .em-strip-label { font: var(--t-small); font-weight: var(--w-semi); color: var(--muted); margin: 0 0 var(--sp-2); }
 #em-line-strip-label { margin-top: var(--sp-4); }
@@ -603,6 +634,16 @@ h2 { margin: 0 0 var(--sp-2); }
   80% { transform: translateX(3px); }
 }
 .photon-squiggle { filter: drop-shadow(0 0 3px var(--photon-glow)); }
+/* UV / IR photons have no colour to the eye: a dashed grey wave, no glow */
+.photon-squiggle--invisible { filter: none; }
+.photon-tag { letter-spacing: .08em; }
+.lvl-line--limit { stroke: var(--faint); }
+
+/* the magnifier that makes Lyman's tiny landing orbit readable */
+.lens-glass { fill: var(--card); }
+.lens-rim { fill: none; stroke: var(--primary); stroke-width: 2; }
+.lens-link { fill: none; stroke: var(--primary); stroke-width: 1.2; stroke-dasharray: 4 4; opacity: .6; }
+.lens-zoom { fill: var(--primary-soft-ink); font-weight: var(--w-semi); }
 
 /* ---------------- footer ---------------- */
 .page-footer {
@@ -774,6 +815,108 @@ body.emission .tile-spectrum-rainbow { inset: 2px; }
   .emission .transition-panel-title { font-size: var(--fs-body, 1rem); font-weight: var(--w-semi); color: var(--ink); }
 }
 
+/* ---- hydrogen series control + the viewer tray (Experimental setup card) ---- */
+.emission .setup-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0 0 var(--sp-2);
+  flex: none;
+}
+.emission .setup-head h2 { margin: 0; }
+.emission .series-toggle[hidden] { display: none; }
+.emission .series-toggle { max-width: 100%; }
+.emission .series-toggle > button {
+  font: var(--t-small);
+  font-weight: var(--w-semi);
+  min-height: 36px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+/* the tray is the bottom row of the dark stage: the plates come up out of it */
+.emission #apparatus-wrap { grid-template-rows: minmax(0, 1fr) auto; }
+.emission .viewer-tray {
+  grid-area: 2 / 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+}
+.emission .viewer-tray[hidden] { display: none; }
+.emission .tray-hint {
+  flex: 1 1 150px;
+  min-width: 0;
+  margin: 0;
+  font: var(--t-small);
+  color: var(--stage-ink);
+}
+.emission .tray-hint:empty { display: none; }
+.emission .tray-slots { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-left: auto; }
+
+.tray-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 40px;
+  padding: 4px var(--sp-4) 4px var(--sp-3);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--stage-chip);
+  color: var(--stage-chip-ink);
+  font: var(--t-small);
+  font-weight: var(--w-semi);
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.tray-btn:hover { background: var(--lav-100); }
+.tray-btn[aria-pressed="true"] {
+  background: var(--stage-chip-on);
+  color: var(--stage-chip-on-ink);
+  box-shadow: inset 0 0 0 3px var(--lav-400);
+}
+.tray-btn:focus-visible { outline: 3px solid var(--stage-focus); outline-offset: 2px; box-shadow: none; }
+.plate-icon { width: 14px; height: 23px; flex: none; fill: currentColor; stroke: none; }
+.plate-icon-slab { stroke: currentColor; stroke-width: 1.3; }
+/* the plate has left its slot: only the outline of it is left in the tray */
+.tray-btn.is-out .plate-icon-slab { fill: none !important; stroke-dasharray: 2 2; }
+
+/* the way to add the plate, inside the dark Line spectrum strip */
+.add-viewer-btn {
+  position: relative;
+  display: block;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  margin: 6px;
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--stage-chip);
+  color: var(--stage-chip-ink);
+  font: var(--w-semi) 14px/1 var(--font-body);
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease);
+}
+.add-viewer-btn:hover { background: var(--lav-100); }
+.add-viewer-btn:focus-visible { outline: 3px solid var(--stage-focus); outline-offset: 2px; box-shadow: none; }
+.add-viewer-btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--glow, var(--lav-200));
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  animation: ctaRing 2.4s var(--ease) infinite;
+}
+@keyframes ctaRing {
+  0% { opacity: .9; transform: scale(.96); }
+  70%, 100% { opacity: 0; transform: scale(1.1); }
+}
+
 /* ---- DESKTOP ---- */
 @media (min-width: 960px) {
   html:has(body.emission) { height: 100%; }
@@ -822,9 +965,17 @@ body.emission .tile-spectrum-rainbow { inset: 2px; }
 
   /* heights: setup + transition share what is left; spectrum is content-sized */
   .emission .panel--setup { flex: 6 1 0; min-height: 216px; }
+  .emission .panel--setup.has-series { min-height: 232px; }
+  .emission .panel--setup.has-tray { min-height: 320px; }
   .emission .panel--spectrum { flex: 0 0 auto; }
   .emission .panel--transition { flex: 5 1 0; min-height: auto; }
   .emission .panel--spectrum .panel-empty { min-height: 96px; }
+}
+/* narrower than ~1100px the series control no longer fits beside the heading and wraps under it:
+   give that row its room, so the drawing keeps its size */
+@media (min-width: 960px) and (max-width: 1099px) {
+  .emission .panel--setup.has-series { min-height: 268px; }
+  .emission .panel--setup.has-tray { min-height: 356px; }
 }
 /* short windows: drop the long intro lines */
 @media (min-width: 960px) and (max-height: 960px) {
@@ -1144,6 +1295,7 @@ html:has(.tit) { height: 100%; }
   * { transition: none !important; }
   .em-reveal-wrap.phase-visible.animate-in,
   .transition-panel.appear,
+  .add-viewer-btn::after,
   .electron-vibrate { animation: none !important; }
   .theme-toggle:hover,
   .tit .page button:active { transform: none !important; }
